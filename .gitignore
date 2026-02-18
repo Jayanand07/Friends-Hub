@@ -1,0 +1,17 @@
+target/
+.mvn/
+mvnw
+mvnw.cmd
+.idea/
+.settings/
+.vscode/
+.classpath
+.project
+*.log
+.DS_Store
+**/.env
+**/.env.*
+!.env.example
+node_modules/
+dist/
+build/
