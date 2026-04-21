@@ -5,7 +5,7 @@ const WS_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8080/api').re
 
 export let stompClient = null;
 
-export function connectChat(userId, { onMessage, onTyping, onOnlineUsers }) {
+export function connectChat(userId, { onMessage, onTyping, onOnlineUsers, onConnected }) {
     const token = localStorage.getItem('token');
     stompClient = new Client({
         webSocketFactory: () => new SockJS(`${WS_BASE}/ws`),
@@ -19,6 +19,7 @@ export function connectChat(userId, { onMessage, onTyping, onOnlineUsers }) {
     });
 
     stompClient.onConnect = () => {
+        if (onConnected) onConnected();
         // Private messages
         stompClient.subscribe(`/queue/messages-${userId}`, (msg) => {
             const body = JSON.parse(msg.body);

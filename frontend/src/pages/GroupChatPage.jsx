@@ -3,8 +3,8 @@ import { motion } from 'framer-motion';
 import { Plus, Users } from 'lucide-react';
 import { getUserGroups } from '../api/groupChat';
 import { useAuth } from '../context/AuthContext';
-import GroupChatWindow from '../components/chat/GroupChatWindow';
 import CreateGroupModal from '../components/chat/CreateGroupModal';
+import { connectChat, disconnectChat } from '../socket/chatSocket';
 
 export default function GroupChatPage() {
     const { user } = useAuth();
@@ -12,6 +12,15 @@ export default function GroupChatPage() {
     const [selectedGroup, setSelectedGroup] = useState(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [isSocketConnected, setIsSocketConnected] = useState(false);
+
+    useEffect(() => {
+        if (!user?.id) return;
+        connectChat(user.id, {
+            onConnected: () => setIsSocketConnected(true)
+        });
+        return () => disconnectChat();
+    }, [user?.id]);
 
     const fetchGroups = () => {
         setLoading(true);
@@ -113,6 +122,7 @@ export default function GroupChatPage() {
                     <GroupChatWindow
                         group={selectedGroup}
                         currentUser={user}
+                        isSocketConnected={isSocketConnected}
                         onBack={() => setSelectedGroup(null)}
                         refreshGroups={fetchGroups}
                     />

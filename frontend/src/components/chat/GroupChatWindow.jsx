@@ -9,7 +9,7 @@ import { useToast } from '../Toast';
 import GroupMembersModal from './GroupMembersModal';
 import { stompClient } from '../../socket/chatSocket';
 
-export default function GroupChatWindow({ group, currentUser, onBack, refreshGroups }) {
+export default function GroupChatWindow({ group, currentUser, onBack, refreshGroups, isSocketConnected }) {
     const [messages, setMessages] = useState([]);
     const [text, setText] = useState('');
     const [loading, setLoading] = useState(false);
@@ -35,7 +35,7 @@ export default function GroupChatWindow({ group, currentUser, onBack, refreshGro
 
     // WebSocket Subscription
     useEffect(() => {
-        if (!group || !stompClient || !stompClient.connected) return;
+        if (!group || !stompClient || !isSocketConnected) return;
 
         console.log("Subscribing to group", group.groupId);
         subscriptionRef.current = stompClient.subscribe(`/topic/group-${group.groupId}`, (message) => {
