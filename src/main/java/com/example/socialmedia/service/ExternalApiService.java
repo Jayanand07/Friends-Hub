@@ -3,6 +3,8 @@ package com.example.socialmedia.service;
 import com.example.socialmedia.entity.Post;
 import com.example.socialmedia.entity.User;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -11,6 +13,8 @@ import java.util.Map;
 
 @Service
 public class ExternalApiService {
+
+    private static final Logger log = LoggerFactory.getLogger(ExternalApiService.class);
 
     private final RestTemplate restTemplate;
 
@@ -28,9 +32,9 @@ public class ExternalApiService {
             payload.put("userId", post.getUser().getId());
 
             restTemplate.postForObject(EXTERNAL_API_URL, payload, String.class);
-            System.out.println("External API notified: Post created by user " + post.getUser().getEmail());
+            log.info("External API notified: Post created by user {}", post.getUser().getId());
         } catch (Exception e) {
-            System.err.println("Failed to notify external API for post creation: " + e.getMessage());
+            log.warn("Failed to notify external API for post creation: {}", e.getMessage());
         }
     }
 
@@ -38,13 +42,13 @@ public class ExternalApiService {
         try {
             Map<String, Object> payload = new HashMap<>();
             payload.put("title", "New User Registered");
-            payload.put("body", "User registered with email: " + user.getEmail());
+            payload.put("body", "New user registered");
             payload.put("userId", user.getId());
 
             restTemplate.postForObject(EXTERNAL_API_URL, payload, String.class);
-            System.out.println("External API notified: User registered - " + user.getEmail());
+            log.info("External API notified: User registered with ID {}", user.getId());
         } catch (Exception e) {
-            System.err.println("Failed to notify external API for user registration: " + e.getMessage());
+            log.warn("Failed to notify external API for user registration: {}", e.getMessage());
         }
     }
 }

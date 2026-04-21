@@ -38,7 +38,6 @@ public class EmailService {
             log.info("Verification email successfully sent to {}", toEmail);
         } catch (Exception e) {
             log.error("Failed to send verification email to {}: {}", toEmail, e.getMessage());
-            log.debug("Verification token for {}: {}", toEmail, token);
         }
     }
 
@@ -56,7 +55,6 @@ public class EmailService {
             log.info("Password reset email successfully sent to {}", toEmail);
         } catch (Exception e) {
             log.error("Failed to send reset email to {}: {}", toEmail, e.getMessage());
-            log.debug("Reset token for {}: {}", toEmail, token);
         }
     }
 }

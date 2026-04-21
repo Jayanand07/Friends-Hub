@@ -33,7 +33,10 @@ public class ChatController {
 
     @MessageMapping("/chat.send")
     public void sendMessage(@Payload ChatSendRequest request, Authentication authentication) {
-        String senderEmail = authentication != null ? authentication.getName() : request.getSenderEmail();
+        if (authentication == null) {
+            throw new RuntimeException("Authentication required");
+        }
+        String senderEmail = authentication.getName();
         ChatMessageDTO message = chatService.sendMessage(senderEmail, request.getReceiverId(),
                 request.getContent(), request.getImageUrl());
 

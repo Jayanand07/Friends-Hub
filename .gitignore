@@ -1,17 +1,53 @@
+# === Env files - NEVER commit these ===
+.env
+.env.local
+.env.production
+.env.development
+src/main/resources/.env
+!.env.example
+
+# Root application.properties is wrong location, should not exist
+/application.properties
+
+# === Compiled / Build ===
 target/
+*.class
+*.jar
+
+# === Frontend ===
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+!frontend/.env.example
+
+# === Test scripts that should not be committed ===
+frontend/test_realtime.js
+frontend/test_storage.js
+
+# === IDE ===
+.idea/
+.vscode/
+*.iml
+.settings/
+.classpath
+.project
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === Maven Wrapper (if added later) ===
 .mvn/
 mvnw
 mvnw.cmd
-.idea/
-.settings/
-.vscode/
-.classpath
-.project
+
+# === Logs ===
+logs/
 *.log
-.DS_Store
-**/.env
-**/.env.*
-!.env.example
+
+# === Misc ===
 node_modules/
 dist/
 build/

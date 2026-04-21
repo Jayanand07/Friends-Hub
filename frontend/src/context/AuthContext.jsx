@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { jwtDecode } from './jwtDecode';
+import { decodeToken } from './jwtDecode';
 
 const AuthContext = createContext(null);
 
@@ -9,14 +9,15 @@ export function AuthProvider({ children }) {
 
     useEffect(() => {
         if (token) {
-            try {
-                const decoded = jwtDecode(token);
+            const decoded = decodeToken(token);
+            if (decoded) {
                 setUser({
                     email: decoded.sub,
                     id: decoded.userId || decoded.id,
                     role: decoded.role
                 });
-            } catch {
+            } else {
+                // Token invalid or expired — auto logout
                 logout();
             }
         }
@@ -29,6 +30,7 @@ export function AuthProvider({ children }) {
 
     const logout = () => {
         localStorage.removeItem('token');
+        localStorage.removeItem('user');
         setToken(null);
         setUser(null);
     };

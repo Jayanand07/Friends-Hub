@@ -1,12 +1,14 @@
 import SockJS from 'sockjs-client/dist/sockjs';
 import { Client } from '@stomp/stompjs';
 
+const WS_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8080/api').replace('/api', '');
+
 export let stompClient = null;
 
 export function connectChat(userId, { onMessage, onTyping, onOnlineUsers }) {
     const token = localStorage.getItem('token');
     stompClient = new Client({
-        webSocketFactory: () => new SockJS('http://localhost:8080/ws'),
+        webSocketFactory: () => new SockJS(`${WS_BASE}/ws`),
         connectHeaders: {
             Authorization: `Bearer ${token}`
         },

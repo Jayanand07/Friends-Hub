@@ -9,6 +9,8 @@ import SockJS from 'sockjs-client/dist/sockjs';
 import { Client } from '@stomp/stompjs';
 import { useAuth } from '../context/AuthContext';
 
+const WS_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8080/api').replace('/api', '');
+
 export default function MainLayout() {
     const { user } = useAuth();
     const [showCreate, setShowCreate] = useState(false);
@@ -22,7 +24,7 @@ export default function MainLayout() {
 
         const token = localStorage.getItem('token');
         const client = new Client({
-            webSocketFactory: () => new SockJS('http://localhost:8080/ws'),
+            webSocketFactory: () => new SockJS(`${WS_BASE}/ws`),
             connectHeaders: {
                 Authorization: `Bearer ${token}`
             },

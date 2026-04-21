@@ -1,5 +1,7 @@
 package com.example.socialmedia.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -12,6 +14,8 @@ import java.util.UUID;
 
 @Service
 public class SupabaseStorageService {
+
+    private static final Logger log = LoggerFactory.getLogger(SupabaseStorageService.class);
 
     @Value("${supabase.url}")
     private String supabaseUrl;
@@ -93,9 +97,9 @@ public class SupabaseStorageService {
             HttpEntity<Void> entity = new HttpEntity<>(headers);
 
             restTemplate.exchange(deleteUrl, HttpMethod.DELETE, entity, String.class);
-            System.out.println("Deleted image from Supabase: " + filename);
+            log.info("Deleted image from Supabase: {}", filename);
         } catch (Exception e) {
-            System.err.println("Failed to delete image from Supabase: " + e.getMessage());
+            log.warn("Failed to delete image from Supabase: {}", e.getMessage());
         }
     }
 }
