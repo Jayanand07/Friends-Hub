@@ -42,6 +42,9 @@ public class ChatGroupService {
         // Add creator and selected members
         group.getMembers().add(creator);
         if (memberIds != null && !memberIds.isEmpty()) {
+            if (memberIds.size() >= 50) {
+                throw new RuntimeException("Group cannot have more than 50 members");
+            }
             List<User> members = userRepo.findAllById(memberIds);
             group.getMembers().addAll(members);
         }
@@ -71,6 +74,10 @@ public class ChatGroupService {
 
         User userToAdd = userRepo.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User to add not found"));
+
+        if (group.getMembers().size() >= 50) {
+            throw new RuntimeException("Group member limit of 50 reached");
+        }
 
         group.getMembers().add(userToAdd);
         return toGroupDTO(groupRepo.save(group));

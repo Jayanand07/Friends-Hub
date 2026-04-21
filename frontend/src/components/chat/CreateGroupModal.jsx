@@ -38,10 +38,8 @@ export default function CreateGroupModal({ onClose, onCreated }) {
         try {
             let imageUrl = null;
             if (imageFile) {
-                const formData = new FormData();
-                formData.append('file', imageFile);
-                const uploadRes = await uploadImage(formData);
-                imageUrl = uploadRes.data;
+                const uploadRes = await uploadImage(imageFile);
+                imageUrl = uploadRes.data.imageUrl;
             }
 
             const memberIds = selectedUsers.map(u => u.id || u.userId);
