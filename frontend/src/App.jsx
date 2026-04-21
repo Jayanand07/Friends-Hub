@@ -5,6 +5,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './layouts/MainLayout';
 import { Suspense, lazy } from 'react';
 import { Loader } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 
 // Lazy load pages
 const LoginPage = lazy(() => import('./pages/LoginPage'));
@@ -55,6 +56,7 @@ export default function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
+          <Analytics />
         </BrowserRouter>
       </ToastProvider>
     </AuthProvider>
