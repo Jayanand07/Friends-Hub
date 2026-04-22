@@ -116,7 +116,6 @@ export default function SearchPage() {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-[14px] font-bold text-[var(--text-primary)] truncate">{user.name}</p>
-                                            <p className="text-[12px] text-[var(--text-muted)] truncate">{user.email}</p>
                                         </div>
                                         <ArrowRight size={16} className="text-[var(--text-muted)] opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
                                     </button>

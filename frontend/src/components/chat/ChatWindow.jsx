@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, ImagePlus, User, Loader, X, ArrowLeft } from 'lucide-react';
+import { Send, ImagePlus, User, Loader, X, ArrowLeft, Smile } from 'lucide-react';
 import ChatBubble from './ChatBubble';
 import ImagePreviewModal from './ImagePreviewModal';
 import { getMessages, sendMessageRest } from '../../api/chat';
@@ -25,6 +25,8 @@ export default function ChatWindow({
     const [imageFile, setImageFile] = useState(null);
     const [imagePreview, setImagePreview] = useState('');
     const [previewImage, setPreviewImage] = useState(null);
+    const [showEmojis, setShowEmojis] = useState(false);
+    const EMOJIS = ['😊', '😂', '❤️', '👍', '🔥', '😢', '😍', '👏', '🎉', '🤔', '🙌', '✨'];
     const messagesEndRef = useRef(null);
     const fileRef = useRef(null);
     const toast = useToast();
@@ -220,13 +222,34 @@ export default function ChatWindow({
                         className="hidden"
                     />
                     <div className="flex-1 relative">
+                        {showEmojis && (
+                            <div className="absolute bottom-full mb-2 left-0 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl p-2 shadow-xl shadow-black/10 flex flex-wrap gap-1 w-[220px]">
+                                {EMOJIS.map(emoji => (
+                                    <button 
+                                        key={emoji} 
+                                        type="button" 
+                                        onClick={() => { setText(prev => prev + emoji); setShowEmojis(false); }}
+                                        className="w-8 h-8 flex items-center justify-center hover:bg-[var(--bg-elevated)] rounded-lg text-xl transition-colors"
+                                    >
+                                        {emoji}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                         <input
                             type="text"
                             value={text}
                             onChange={handleTyping}
                             placeholder="Type a message..."
-                            className="w-full bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent outline-none text-[var(--text-primary)] transition-all placeholder-[var(--text-muted)]"
+                            className="w-full bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl pl-4 pr-10 py-2.5 text-sm focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent outline-none text-[var(--text-primary)] transition-all placeholder-[var(--text-muted)]"
                         />
+                        <button
+                            type="button"
+                            onClick={() => setShowEmojis(!showEmojis)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors"
+                        >
+                            <Smile size={18} />
+                        </button>
                     </div>
                     <button
                         type="submit"

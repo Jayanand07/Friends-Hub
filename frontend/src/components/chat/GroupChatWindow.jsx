@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, ImagePlus, MoreVertical, X, Loader } from 'lucide-react';
+import { Send, ImagePlus, MoreVertical, X, Loader, Smile } from 'lucide-react';
 import ChatBubble from './ChatBubble';
 import ImagePreviewModal from './ImagePreviewModal';
 import { getGroupMessages } from '../../api/groupChat';
@@ -18,6 +18,8 @@ export default function GroupChatWindow({ group, currentUser, onBack, refreshGro
     const [imageFile, setImageFile] = useState(null);
     const [imagePreview, setImagePreview] = useState('');
     const [previewImage, setPreviewImage] = useState(null); // Full screen preview
+    const [showEmojis, setShowEmojis] = useState(false);
+    const EMOJIS = ['😊', '😂', '❤️', '👍', '🔥', '😢', '😍', '👏', '🎉', '🤔', '🙌', '✨'];
     const messagesEndRef = useRef(null);
     const fileRef = useRef(null);
     const subscriptionRef = useRef(null);
@@ -182,13 +184,36 @@ export default function GroupChatWindow({ group, currentUser, onBack, refreshGro
                         accept="image/*"
                         className="hidden"
                     />
-                    <input
-                        type="text"
-                        value={text}
-                        onChange={e => setText(e.target.value)}
-                        placeholder="Message..."
-                        className="flex-1 bg-[var(--bg-elevated)] border-none rounded-full px-4 py-2.5 text-sm focus:ring-2 focus:ring-[var(--accent)] outline-none text-[var(--text-primary)] transition-all placeholder-[var(--text-muted)]"
-                    />
+                    <div className="flex-1 relative">
+                        {showEmojis && (
+                            <div className="absolute bottom-full mb-2 left-0 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl p-2 shadow-xl shadow-black/10 flex flex-wrap gap-1 w-[220px]">
+                                {EMOJIS.map(emoji => (
+                                    <button 
+                                        key={emoji} 
+                                        type="button" 
+                                        onClick={() => { setText(prev => prev + emoji); setShowEmojis(false); }}
+                                        className="w-8 h-8 flex items-center justify-center hover:bg-[var(--bg-elevated)] rounded-lg text-xl transition-colors"
+                                    >
+                                        {emoji}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        <input
+                            type="text"
+                            value={text}
+                            onChange={e => setText(e.target.value)}
+                            placeholder="Message..."
+                            className="w-full bg-[var(--bg-elevated)] border-none rounded-2xl pl-4 pr-10 py-2.5 text-sm focus:ring-2 focus:ring-[var(--accent)] outline-none text-[var(--text-primary)] transition-all placeholder-[var(--text-muted)]"
+                        />
+                         <button
+                            type="button"
+                            onClick={() => setShowEmojis(!showEmojis)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors"
+                        >
+                            <Smile size={18} />
+                        </button>
+                    </div>
                     <button
                         type="submit"
                         disabled={(!text.trim() && !imageFile) || sending}

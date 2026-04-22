@@ -55,11 +55,11 @@ export default function Navbar({ newNotification }) {
                               }}/>
                           </div>
                           <span style={{
-                            fontFamily:'Syne, sans-serif', fontWeight:700,
+                            fontFamily:'Syne, sans-serif', fontWeight:800,
                             fontSize:'18px', letterSpacing:'-0.02em', lineHeight:1
                           }}>
                             <span style={{color:'var(--text-primary)'}}>Friends</span>
-                            <span style={{color:'var(--accent)'}}>Hub</span>
+                            <span className="bg-gradient-to-r from-[var(--gradient-1)] to-[var(--gradient-3)] bg-clip-text text-transparent drop-shadow-sm">Hub</span>
                           </span>
                         </div>
                     </div>

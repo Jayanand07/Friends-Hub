@@ -5,6 +5,7 @@ import { getUserGroups } from '../api/groupChat';
 import { useAuth } from '../context/AuthContext';
 import CreateGroupModal from '../components/chat/CreateGroupModal';
 import { connectChat, disconnectChat } from '../socket/chatSocket';
+import GroupChatWindow from '../components/chat/GroupChatWindow';
 
 export default function GroupChatPage() {
     const { user } = useAuth();
