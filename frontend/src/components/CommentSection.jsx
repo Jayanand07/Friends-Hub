@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Send, Loader } from 'lucide-react';
 import { getComments, addComment } from '../api/posts';
@@ -27,7 +27,7 @@ export default function CommentSection({ postId, onCommentAdded }) {
     const [loadingMore, setLoadingMore] = useState(false);
     const toast = useToast();
 
-    const fetchComments = async (pageNum = 0, append = false) => {
+    const fetchComments = useCallback(async (pageNum = 0, append = false) => {
         try {
             if (append) setLoadingMore(true);
             else setFetching(true);
@@ -44,11 +44,11 @@ export default function CommentSection({ postId, onCommentAdded }) {
             setFetching(false);
             setLoadingMore(false);
         }
-    };
+    }, [postId]);
 
     useEffect(() => {
         fetchComments(0);
-    }, [postId]);
+    }, [fetchComments]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();

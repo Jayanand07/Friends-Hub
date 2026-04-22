@@ -66,14 +66,13 @@ public class PostService {
 
                 externalApiService.notifyPostCreated(savedPost);
 
-                return mapToPostResponse(savedPost);
+                return mapToPostResponse(savedPost, userEmail);
         }
 
         @Transactional(readOnly = true)
-        @Cacheable(value = "posts")
-        public Page<PostResponse> getAllPosts(Pageable pageable) {
+        public Page<PostResponse> getAllPosts(Pageable pageable, String currentUserEmail) {
                 return postRepository.findAllPublicPosts(pageable)
-                                .map(this::mapToPostResponse);
+                                .map(post -> mapToPostResponse(post, currentUserEmail));
         }
 
         @Transactional(readOnly = true)
@@ -101,7 +100,7 @@ public class PostService {
                 }
 
                 return postRepository.findByUserId(userId, pageable)
-                                .map(this::mapToPostResponse);
+                                .map(post -> mapToPostResponse(post, viewerEmail));
         }
 
         @Transactional
@@ -212,7 +211,8 @@ public class PostService {
                 return user.getEmail().split("@")[0];
         }
 
-        private PostResponse mapToPostResponse(Post post) {
+        private PostResponse mapToPostResponse(Post post, String currentUserEmail) {
+                boolean isLiked = likeRepository.existsByUserEmailAndPostId(currentUserEmail, post.getId());
                 return PostResponse.builder()
                                 .id(post.getId())
                                 .content(post.getContent())
@@ -225,6 +225,7 @@ public class PostService {
                                 .likeCount(post.getLikes() != null ? post.getLikes().size() : 0)
                                 .commentCount(post.getComments() != null ? post.getComments().size() : 0)
                                 .createdAt(post.getCreatedAt())
+                                .isLiked(isLiked)
                                 .build();
         }
 }

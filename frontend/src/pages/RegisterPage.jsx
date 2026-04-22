@@ -10,12 +10,27 @@ export default function RegisterPage() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [loading, setLoading] = useState(false);
+    const [passwordError, setPasswordError] = useState('');
     const toast = useToast();
+
+    const validatePassword = (password) => {
+        if (password.length < 8) return 'Password must be at least 8 characters';
+        if (!/[A-Z]/.test(password)) return 'Password must contain at least one uppercase letter';
+        if (!/[0-9]/.test(password)) return 'Password must contain at least one number';
+        return '';
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setSuccess('');
+
+        const pwdError = validatePassword(form.password);
+        if (pwdError) {
+            setPasswordError(pwdError);
+            return;
+        }
+        setPasswordError('');
         setLoading(true);
         try {
             const res = await register(form);
@@ -100,9 +115,37 @@ export default function RegisterPage() {
                         <label className="text-[11px] font-medium text-[var(--text-secondary)] mb-1 block">Password</label>
                         <div className="relative">
                             <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-                            <input type="password" className="input-field pl-9 text-[13px]" placeholder="••••••••" value={form.password}
-                                onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+                            <input type="password" className={`input-field pl-9 text-[13px] ${passwordError ? 'border-red-500/50' : ''}`} placeholder="Min. 8 chars, 1 uppercase, 1 number" value={form.password}
+                                onChange={(e) => {
+                                    setForm({ ...form, password: e.target.value });
+                                    if (passwordError) setPasswordError(validatePassword(e.target.value));
+                                }} required />
                         </div>
+                        {passwordError && (
+                            <p className="text-[11px] text-red-400 mt-1">{passwordError}</p>
+                        )}
+                        {/* Password strength bar */}
+                        {form.password.length > 0 && (
+                            <div className="flex gap-1 mt-1.5">
+                                {[1, 2, 3].map((level) => {
+                                    const strength = 
+                                        form.password.length >= 8 && /[A-Z]/.test(form.password) && /[0-9]/.test(form.password) ? 3 :
+                                        form.password.length >= 8 ? 2 : 1;
+                                    return (
+                                        <div
+                                            key={level}
+                                            className={`h-1 flex-1 rounded-full transition-colors ${
+                                                level <= strength
+                                                    ? strength === 1 ? 'bg-red-400'
+                                                    : strength === 2 ? 'bg-yellow-400'
+                                                    : 'bg-emerald-400'
+                                                    : 'bg-[var(--border-color)]'
+                                            }`}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        )}
                     </div>
 
                     <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} type="submit" disabled={loading}

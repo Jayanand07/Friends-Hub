@@ -24,7 +24,7 @@ function timeAgo(dateStr) {
 }
 
 export default function PostCard({ post, currentEmail, onDelete }) {
-    const [liked, setLiked] = useState(false);
+    const [liked, setLiked] = useState(post.isLiked ?? post.likedByCurrentUser ?? false);
     const [likeCount, setLikeCount] = useState(post.likeCount || 0);
     const [showComments, setShowComments] = useState(false);
     const [commentCount, setCommentCount] = useState(post.commentCount || 0);
@@ -39,17 +39,19 @@ export default function PostCard({ post, currentEmail, onDelete }) {
     const profilePic = post.authorProfilePic || post.profilePicUrl;
 
     const handleLike = async () => {
-        setLiked(!liked);
-        setLikeCount((c) => (liked ? c - 1 : c + 1));
-        if (!liked) {
+        const wasLiked = liked; // capture current value before any state update
+        setLiked(!wasLiked);
+        setLikeCount((c) => (wasLiked ? c - 1 : c + 1));
+        if (!wasLiked) {
             setHeartBurst(true);
             setTimeout(() => setHeartBurst(false), 500);
         }
         try {
             await toggleLike(post.id);
         } catch {
-            setLiked(liked);
-            setLikeCount((c) => (liked ? c + 1 : c - 1));
+            // rollback using captured snapshot
+            setLiked(wasLiked);
+            setLikeCount((c) => (wasLiked ? c + 1 : c - 1));
             toast.error('Failed to update like');
         }
     };
@@ -58,7 +60,8 @@ export default function PostCard({ post, currentEmail, onDelete }) {
     const handleDoubleTap = () => {
         const now = Date.now();
         if (now - lastTap.current < 300) {
-            if (!liked) handleLike();
+            const wasLiked = liked;
+            if (!wasLiked) handleLike();
             setShowFloatHeart(true);
             setTimeout(() => setShowFloatHeart(false), 800);
         }

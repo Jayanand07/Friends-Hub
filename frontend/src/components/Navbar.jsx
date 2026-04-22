@@ -12,6 +12,7 @@ export default function Navbar({ newNotification }) {
     const navigate = useNavigate();
     const [menuOpen, setMenuOpen] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [searchVal, setSearchVal] = useState('');
     const dropdownRef = useRef(null);
 
     const handleLogout = () => {
@@ -56,9 +57,22 @@ export default function Navbar({ newNotification }) {
                             <input
                                 type="text"
                                 placeholder="Search"
-                                onFocus={() => navigate('/search')}
-                                className="w-full pl-9 pr-3 py-2 bg-[var(--bg-elevated)] border border-transparent focus:border-[var(--border-hover)] rounded-full text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none transition-all duration-200 focus:bg-[var(--bg-primary)] shadow-inner cursor-pointer"
-                                readOnly
+                                value={searchVal}
+                                onChange={(e) => setSearchVal(e.target.value)}
+                                onFocus={() => {
+                                    if (searchVal.trim()) {
+                                        navigate(`/search?q=${encodeURIComponent(searchVal.trim())}`);
+                                    } else {
+                                        navigate('/search');
+                                    }
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && searchVal.trim()) {
+                                        navigate(`/search?q=${encodeURIComponent(searchVal.trim())}`);
+                                        setSearchVal('');
+                                    }
+                                }}
+                                className="w-full pl-9 pr-3 py-2 bg-[var(--bg-elevated)] border border-transparent focus:border-[var(--border-hover)] rounded-full text-[13px] text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none transition-all duration-200 focus:bg-[var(--bg-primary)] shadow-inner"
                             />
                         </div>
                     </div>

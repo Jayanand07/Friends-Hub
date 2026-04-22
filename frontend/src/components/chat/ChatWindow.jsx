@@ -46,7 +46,7 @@ export default function ChatWindow({
             .finally(() => {
                 setLoading(false);
             });
-    }, [selectedUser?.id, setMessages, toast]);
+    }, [selectedUser?.id, setMessages]);
 
     // Scroll to bottom
     useEffect(() => {
@@ -58,6 +58,7 @@ export default function ChatWindow({
         if ((!text.trim() && !imageFile) || sending) return;
 
         setSending(true);
+        const messageText = text.trim();
         try {
             let imageUrl = null;
             if (imageFile) {
@@ -65,11 +66,23 @@ export default function ChatWindow({
                 imageUrl = uploadRes.data.imageUrl;
             }
 
-            // Use REST API for reliability (especially for image messages)
             if (imageUrl || !isConnected()) {
-                await sendMessageRest(selectedUser.id, text, imageUrl);
+                const res = await sendMessageRest(selectedUser.id, messageText, imageUrl);
+                const sentMessage = res.data || {
+                    id: Date.now(), 
+                    senderId: currentUser?.id,
+                    receiverId: selectedUser.id,
+                    content: messageText,
+                    imageUrl: imageUrl,
+                    sentAt: new Date().toISOString(),
+                    isRead: false,
+                };
+                setMessages((prev) => {
+                    if (prev.some((m) => m.id === sentMessage.id)) return prev;
+                    return [...prev, sentMessage];
+                });
             } else {
-                sendChatMessage(selectedUser.id, text, currentUser?.email, imageUrl);
+                sendChatMessage(selectedUser.id, messageText, currentUser?.email, imageUrl);
             }
 
             setText('');

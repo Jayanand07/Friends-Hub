@@ -49,8 +49,8 @@ public class PostController {
     }
 
     @GetMapping
-    public ResponseEntity<Page<PostResponse>> getAllPosts(Pageable pageable) {
-        return ResponseEntity.ok(postService.getAllPosts(pageable));
+    public ResponseEntity<Page<PostResponse>> getAllPosts(Pageable pageable, Authentication authentication) {
+        return ResponseEntity.ok(postService.getAllPosts(pageable, authentication.getName()));
     }
 
     @GetMapping("/user/{userId}")

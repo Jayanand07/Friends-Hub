@@ -19,6 +19,7 @@ const ChatPage = lazy(() => import('./pages/ChatPage'));
 const GroupChatPage = lazy(() => import('./pages/GroupChatPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const SearchPage = lazy(() => import('./pages/SearchPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center h-screen bg-[var(--bg-primary)] text-[var(--accent)]">
@@ -55,7 +56,7 @@ export default function App() {
                   <Route path="/settings" element={<SettingsPage />} />
                 </Route>
 
-                <Route path="*" element={<Navigate to="/" replace />} />
+                <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </Suspense>
             <Analytics />

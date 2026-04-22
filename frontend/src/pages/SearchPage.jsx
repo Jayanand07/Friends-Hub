@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search as SearchIcon, X, Clock, User, ArrowRight } from 'lucide-react';
 import { searchChatUsers } from '../api/chat';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export default function SearchPage() {
     const [query, setQuery] = useState('');
@@ -10,12 +10,21 @@ export default function SearchPage() {
     const [searching, setSearching] = useState(false);
     const [recentSearches, setRecentSearches] = useState([]);
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
 
     // Load recent searches from localStorage
     useEffect(() => {
         const saved = localStorage.getItem('recent_searches');
         if (saved) setRecentSearches(JSON.parse(saved));
     }, []);
+
+    // Check query params
+    useEffect(() => {
+        const q = searchParams.get('q');
+        if (q) {
+            handleSearch(q);
+        }
+    }, [searchParams]);
 
     const handleSearch = async (val) => {
         setQuery(val);

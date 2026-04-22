@@ -45,4 +45,9 @@ public class AuthController {
             @RequestParam("newPassword") String newPassword) {
         return ResponseEntity.ok(new MessageResponse(authService.resetPassword(token, newPassword)));
     }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refresh(org.springframework.security.core.Authentication authentication) {
+        return ResponseEntity.ok(authService.refreshToken(authentication.getName()));
+    }
 }

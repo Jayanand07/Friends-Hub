@@ -13,12 +13,13 @@ public class PostResponse {
     private int commentCount;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdAt;
+    private boolean isLiked;
 
     public PostResponse() {
     }
 
     public PostResponse(Long id, String content, String imageUrl, String authorName, Long authorId, int likeCount,
-            int commentCount, LocalDateTime createdAt) {
+            int commentCount, LocalDateTime createdAt, boolean isLiked) {
         this.id = id;
         this.content = content;
         this.imageUrl = imageUrl;
@@ -27,6 +28,7 @@ public class PostResponse {
         this.likeCount = likeCount;
         this.commentCount = commentCount;
         this.createdAt = createdAt;
+        this.isLiked = isLiked;
     }
 
     // Getters and Setters
@@ -94,6 +96,14 @@ public class PostResponse {
         this.createdAt = createdAt;
     }
 
+    public boolean isLiked() {
+        return isLiked;
+    }
+
+    public void setLiked(boolean liked) {
+        isLiked = liked;
+    }
+
     public static PostResponseBuilder builder() {
         return new PostResponseBuilder();
     }
@@ -107,6 +117,7 @@ public class PostResponse {
         private int likeCount;
         private int commentCount;
         private LocalDateTime createdAt;
+        private boolean isLiked;
 
         PostResponseBuilder() {
         }
@@ -151,8 +162,13 @@ public class PostResponse {
             return this;
         }
 
+        public PostResponseBuilder isLiked(boolean isLiked) {
+            this.isLiked = isLiked;
+            return this;
+        }
+
         public PostResponse build() {
-            return new PostResponse(id, content, imageUrl, authorName, authorId, likeCount, commentCount, createdAt);
+            return new PostResponse(id, content, imageUrl, authorName, authorId, likeCount, commentCount, createdAt, isLiked);
         }
     }
 }

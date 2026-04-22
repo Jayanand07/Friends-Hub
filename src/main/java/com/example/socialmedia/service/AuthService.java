@@ -152,4 +152,18 @@ public class AuthService {
 
         return "Password reset successfully. You can now login.";
     }
+
+    public AuthResponse refreshToken(String email) {
+        var user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+        var jwtToken = jwtService.generateToken(new org.springframework.security.core.userdetails.User(
+                user.getEmail(),
+                user.getPassword(),
+                java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
+                        user.getRole().name()))),
+                user.getId());
+        return AuthResponse.builder()
+                .token(jwtToken)
+                .build();
+    }
 }

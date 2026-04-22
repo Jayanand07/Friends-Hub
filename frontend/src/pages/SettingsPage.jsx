@@ -6,6 +6,7 @@ import { getProfile, updateProfileSettings } from '../api/users';
 import PrivacyToggle from '../components/PrivacyToggle';
 import BlockedUsersList from '../components/BlockedUsersList';
 import FollowRequestsPanel from '../components/FollowRequestsPanel';
+import { useToast } from '../components/Toast';
 
 const TABS = [
     { id: 'profile', label: 'Profile Info', icon: User },
@@ -22,6 +23,7 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [showBlockedModal, setShowBlockedModal] = useState(false);
+    const toast = useToast();
 
     const [form, setForm] = useState({
         firstName: '', lastName: '', bio: '', website: '',
@@ -58,8 +60,11 @@ export default function SettingsPage() {
         try {
             await updateProfileSettings(form);
             await loadProfile();
+            toast.success('Profile saved successfully! ✅');
         } catch (err) {
             console.error(err);
+            const msg = err.response?.data?.message || 'Failed to save profile. Please try again.';
+            toast.error(msg);
         } finally {
             setSaving(false);
         }
