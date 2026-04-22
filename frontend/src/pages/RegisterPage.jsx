@@ -45,8 +45,30 @@ export default function RegisterPage() {
                 className="glass w-full max-w-md rounded-2xl p-8 relative z-10"
             >
                 <div className="text-center mb-8">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 via-[var(--accent)] to-pink-500 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-purple-500/20">
-                        <UserPlus size={26} className="text-white" />
+                    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'12px', marginBottom:'32px' }}>
+                      <div style={{
+                        width:'56px', height:'56px', borderRadius:'16px',
+                        background:'#E91E8C', position:'relative', overflow:'hidden',
+                        boxShadow:'0 8px 24px rgba(233,30,140,0.4)'
+                      }}>
+                        <div style={{
+                          position:'absolute', width:'34px', height:'30px',
+                          background:'#000000', borderRadius:'8px 8px 8px 3px',
+                          top:'10px', left:'9px'
+                        }}/>
+                        <div style={{
+                          position:'absolute', width:'34px', height:'30px',
+                          background:'rgba(0,0,0,0.3)', borderRadius:'8px 8px 3px 8px',
+                          bottom:'10px', right:'9px'
+                        }}/>
+                      </div>
+                      <span style={{
+                        fontFamily:'Syne, sans-serif', fontWeight:800,
+                        fontSize:'28px', letterSpacing:'-0.02em'
+                      }}>
+                        <span style={{color:'#FFFFFF'}}>Friends</span>
+                        <span style={{color:'#E91E8C'}}>Hub</span>
+                      </span>
                     </div>
                     <h1 className="text-2xl font-bold">Create account</h1>
                     <p className="text-[12px] text-[var(--text-muted)] mt-1">Join the FriendsHub community</p>

@@ -31,12 +31,31 @@ export default function Sidebar({ onCreatePost }) {
         <aside className="hidden lg:flex flex-col w-[240px] h-screen sticky top-0 border-r border-[var(--border-color)] glass z-50 px-4 py-6 justify-between transition-colors duration-300">
             {/* Logo */}
             <div className="px-2 mb-8">
-                <h1
-                    className="text-2xl font-bold bg-gradient-to-r from-[var(--gradient-1)] via-[var(--gradient-2)] to-[var(--gradient-3)] bg-clip-text text-transparent cursor-pointer hover:opacity-80 transition-opacity"
-                    onClick={() => navigate('/')}
-                >
-                    FriendsHub
-                </h1>
+                <div onClick={() => navigate('/')} className="cursor-pointer hover:opacity-80 transition-opacity" style={{ display:'flex', alignItems:'center', gap:'12px', padding:'4px 0' }}>
+                    <div style={{
+                        width:'42px', height:'42px', borderRadius:'13px',
+                        background:'#E91E8C', position:'relative', overflow:'hidden', flexShrink:0,
+                        boxShadow:'0 4px 16px rgba(233,30,140,0.35)'
+                    }}>
+                        <div style={{
+                            position:'absolute', width:'26px', height:'23px',
+                            background:'#000000', borderRadius:'6px 6px 6px 2px',
+                            top:'8px', left:'7px'
+                        }}/>
+                        <div style={{
+                            position:'absolute', width:'26px', height:'23px',
+                            background:'rgba(0,0,0,0.3)', borderRadius:'6px 6px 2px 6px',
+                            bottom:'8px', right:'7px'
+                        }}/>
+                    </div>
+                    <span style={{
+                        fontFamily:'Syne, sans-serif', fontWeight:800,
+                        fontSize:'22px', letterSpacing:'-0.02em', lineHeight:1
+                    }}>
+                        <span style={{color:'#FFFFFF'}}>Friends</span>
+                        <span style={{color:'#E91E8C'}}>Hub</span>
+                    </span>
+                </div>
             </div>
 
             {/* Nav Links */}

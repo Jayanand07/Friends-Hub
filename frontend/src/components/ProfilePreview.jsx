@@ -58,7 +58,12 @@ export default function ProfilePreview() {
 
                 {/* Footer */}
                 <div className="mt-6 text-[11px] text-[var(--text-muted)]/50 leading-relaxed">
-                    <p>FriendsHub · © 2026</p>
+                    <p>
+                        <span style={{fontFamily:'Syne,sans-serif', fontWeight:800}}>
+                            <span style={{color:'#FFFFFF'}}>Friends</span>
+                            <span style={{color:'#E91E8C'}}>Hub</span>
+                        </span> © 2026
+                    </p>
                 </div>
             </motion.div>
         </div>

@@ -35,7 +35,31 @@ export default function Navbar({ newNotification }) {
                 <div className="max-w-[935px] mx-auto px-4 h-[60px] flex items-center justify-between gap-4">
                     {/* Left — Logo */}
                     <div className="flex items-center gap-3 lg:hidden">
-                        <span className="text-lg font-bold">FriendsHub</span>
+                        <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
+                          <div style={{
+                            width:'34px', height:'34px', borderRadius:'10px',
+                            background:'#E91E8C', position:'relative', overflow:'hidden', flexShrink:0,
+                            boxShadow:'0 4px 12px rgba(233,30,140,0.35)'
+                          }}>
+                            <div style={{
+                              position:'absolute', width:'21px', height:'18px',
+                              background:'#000000', borderRadius:'5px 5px 5px 2px',
+                              top:'6px', left:'6px'
+                            }}/>
+                            <div style={{
+                              position:'absolute', width:'21px', height:'18px',
+                              background:'rgba(0,0,0,0.3)', borderRadius:'5px 5px 2px 5px',
+                              bottom:'6px', right:'6px'
+                            }}/>
+                          </div>
+                          <span style={{
+                            fontFamily:'Syne, sans-serif', fontWeight:800,
+                            fontSize:'18px', letterSpacing:'-0.02em', lineHeight:1
+                          }}>
+                            <span style={{color:'#FFFFFF'}}>Friends</span>
+                            <span style={{color:'#E91E8C'}}>Hub</span>
+                          </span>
+                        </div>
                     </div>
 
                     {/* Center — Search (desktop) */}
