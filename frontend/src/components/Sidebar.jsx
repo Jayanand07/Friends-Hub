@@ -49,8 +49,8 @@ export default function Sidebar({ onCreatePost }) {
                         }}/>
                     </div>
                     <span style={{
-                        fontFamily:'Syne, sans-serif', fontWeight:800,
-                        fontSize:'22px', letterSpacing:'-0.02em', lineHeight:1
+                        fontFamily:'Syne, sans-serif', fontWeight:700,
+                        fontSize:'20px', letterSpacing:'-0.02em', lineHeight:1
                     }}>
                         <span style={{color:'#FFFFFF'}}>Friends</span>
                         <span style={{color:'#E91E8C'}}>Hub</span>

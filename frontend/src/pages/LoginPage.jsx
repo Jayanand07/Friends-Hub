@@ -85,7 +85,7 @@ export default function LoginPage() {
                         }}/>
                       </div>
                       <span style={{
-                        fontFamily:'Syne, sans-serif', fontWeight:800,
+                        fontFamily:'Syne, sans-serif', fontWeight:700,
                         fontSize:'28px', letterSpacing:'-0.02em'
                       }}>
                         <span style={{color:'#FFFFFF'}}>Friends</span>

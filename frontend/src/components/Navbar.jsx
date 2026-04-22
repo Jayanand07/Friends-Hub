@@ -53,7 +53,7 @@ export default function Navbar({ newNotification }) {
                             }}/>
                           </div>
                           <span style={{
-                            fontFamily:'Syne, sans-serif', fontWeight:800,
+                            fontFamily:'Syne, sans-serif', fontWeight:700,
                             fontSize:'18px', letterSpacing:'-0.02em', lineHeight:1
                           }}>
                             <span style={{color:'#FFFFFF'}}>Friends</span>
