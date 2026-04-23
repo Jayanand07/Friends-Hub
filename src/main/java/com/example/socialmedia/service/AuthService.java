@@ -69,7 +69,7 @@ public class AuthService {
 
         userInfoRepository.save(userInfo);
 
-        emailService.sendVerificationEmail(savedUser.getEmail(), verificationToken);
+        emailService.sendVerificationEmail(savedUser.getEmail(), verificationToken, request.getFirstName());
 
         externalApiService.notifyUserRegistered(savedUser);
 

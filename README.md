@@ -1,89 +1,250 @@
-# FriendsHub (Enterprise-Grade Social Media API)
+<div align="center">
 
-A modern, highly scalable, and secure social media application built with Spring Boot 3 (Backend) and React (Frontend).
+<img src="https://img.shields.io/badge/Spring%20Boot-3.2-6DB33F?style=for-the-badge&logo=springboot&logoColor=white" />
+<img src="https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black" />
+<img src="https://img.shields.io/badge/PostgreSQL-Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white" />
+<img src="https://img.shields.io/badge/Java-17-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white" />
+<img src="https://img.shields.io/badge/Deployed-friendshub.me-6366f1?style=for-the-badge&logo=vercel&logoColor=white" />
 
-## 🚀 Key Features
+# FriendsHub
 
-* **User Authentication**: Secure JWT-based stateless authentication with role-based access control.
-* **Core Social Features**: Posts, Comments, Likes, Shares, Private/Public Profiles, and a robust Follow system.
-* **Real-time Engine**: WebSocket-based real-time chat and instant notifications.
-* **Media Management**: Seamless integration with Supabase Storage for fast content delivery.
+**A full-stack social media platform built for real-world production.**  
+Connect, post, react, chat — all in real-time.
 
-## 🛡️ Security & Reliability (New in v2.0)
+[**→ Live Demo: friendshub.me**](https://friendshub.me)
 
-We've recently upgraded the backend architecture to support production-level traffic and enterprise-grade observability:
+</div>
 
-* **Distributed Rate Limiting**: Zero-dependency sliding-window counter protecting endpoints against DDoS and brute-force attacks (`60 req/min` per IP).
-* **Circuit Breaker Pattern**: Resilience4j ensures graceful degradation of downstream services (Chat, Notifications, Email, Media) preventing cascading failures.
-* **API Telemetry & Interceptors**: Custom interceptors track every API call, recording user, method, endpoint, duration, and status.
-* **Database Logging & Auto-cleanup**: Comprehensive JPA entity indexing for lightning-fast API usage queries, paired with a cron-based cleanup service to prevent database bloat.
-* **Prometheus & Actuator Integration**: Full JVM, memory, and custom metrics (latency, error rates, rate limit breaches) exported to Prometheus via Spring Boot Actuator.
-* **Hardened Exception Handling**: Secure, standardized JSON error responses that never leak internal stack traces to the public.
+---
 
-## ⚙️ Tech Stack
+## Overview
 
-### Backend
-* **Java 17 & Spring Boot 3.2**
-* **Spring Security & JWT**
-* **Spring Data JPA & Hibernate**
-* **Spring WebSocket**
-* **Resilience4j** (Circuit Breaker)
-* **Micrometer & Prometheus** (Observability)
-* **PostgreSQL** (Primary Datastore)
+FriendsHub is a complete social media application with a Spring Boot REST + WebSocket backend and a React 18 frontend. It handles authentication, social graph management, media uploads, real-time messaging, and notifications — all secured at the database and API level.
 
-### Frontend
-* **React 18 & Vite**
-* **Tailwind CSS & Framer Motion** (Dark Mode UI)
+---
 
-## 🛠️ Setup & Local Development
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Backend** | Java 17, Spring Boot 3.2, Spring Security, Spring Data JPA |
+| **Auth** | Custom JWT (BCrypt + HS256), Token Refresh |
+| **Real-time** | Spring WebSocket (STOMP), SockJS |
+| **Database** | Supabase PostgreSQL (RLS-hardened) |
+| **Storage** | Supabase Storage (service-role server-side uploads) |
+| **Frontend** | React 18, Vite, Tailwind CSS, Framer Motion |
+| **Resilience** | Resilience4j Circuit Breaker, sliding-window rate limiter |
+| **Observability** | Spring Actuator, Micrometer, Prometheus |
+| **Deployment** | Frontend → Vercel / friendshub.me · Backend → Render |
+| **Email** | Spring Mail (Gmail SMTP) with branded HTML templates |
+
+---
+
+## Features
+
+### Auth & Users
+- Email + password registration with **email verification** (branded HTML email)
+- BCrypt password hashing, JWT access tokens, refresh token endpoint
+- Password reset via time-limited email token (15 min expiry)
+- Public / private account toggle
+- Block / unblock users
+
+### Social Graph
+- Follow / unfollow users
+- Follow request system for private accounts (accept / reject)
+- Followers & following lists per user
+
+### Posts & Feed
+- Create posts with text and/or image upload
+- Paginated feed (newest first)
+- Like / unlike posts
+- Emoji reactions on posts and comments
+- Nested comments
+
+### Stories
+- 24-hour expiring stories with image upload
+- Story view tracking (followers-only or public, configurable per account)
+
+### Real-time Chat
+- 1-on-1 DM via WebSocket (STOMP)
+- Group chat — create groups, add/remove members, group messaging
+- REST fallback for message send
+- Read receipts, online presence indicator
+
+### Notifications
+- Real-time notification push via WebSocket
+- Unread count badge, mark-all-read
+
+### Media
+- Image uploads routed through Spring Boot (server-side) → Supabase Storage
+- 5 MB limit, JPEG / PNG / GIF / WebP validation
+- Profile picture upload and removal
+
+---
+
+## Security
+
+This project uses a **backend-first security model**:
+
+- **Spring Boot is the only entry point** — the React frontend never talks to Supabase directly
+- **Row Level Security (RLS)** enabled and forced on all 18 Postgres tables (`fix_rls_security.sql`)
+- Sensitive columns (`password`, `verification_token`, `password_reset_token`) hidden from the PostgREST API via `REVOKE SELECT`
+- **Service role key** used server-side only (bypasses RLS for backend operations)  
+- **Anon key** not embedded in the frontend (no Supabase JS client)
+- Rate limiting: 60 req/min per IP, 30 req/min per authenticated user
+- Secrets managed via environment variables — nothing hardcoded
+
+---
+
+## Project Structure
+
+```
+.
+├── src/main/java/com/example/socialmedia/
+│   ├── config/          # Security, CORS, WebSocket, rate limiter, metrics
+│   ├── controller/      # REST controllers (Auth, User, Post, Story, Chat, etc.)
+│   ├── dto/             # Request/Response DTOs
+│   ├── entity/          # JPA entities (User, Post, Story, ChatMessage, etc.)
+│   ├── repository/      # Spring Data JPA repositories
+│   ├── security/        # JWT filter, JwtService, STOMP interceptor
+│   ├── service/         # Business logic + SupabaseStorageService + EmailService
+│   └── scheduler/       # Cron jobs (story expiry, API log cleanup)
+│
+├── src/main/resources/
+│   ├── application.properties
+│   └── .env.example     # All required env vars documented here
+│
+├── frontend/
+│   ├── src/
+│   │   ├── api/         # Axios wrappers (auth, posts, users, chat, etc.)
+│   │   ├── components/  # Navbar, PostCard, StoriesBar, Chat, etc.
+│   │   ├── context/     # AuthContext, ThemeContext
+│   │   ├── pages/       # Login, Register, Home, Profile, Search, Settings, Chat
+│   │   └── socket/      # WebSocket client setup
+│   └── .env.example
+│
+└── fix_rls_security.sql # One-shot Supabase RLS migration script
+```
+
+---
+
+## Local Development
 
 ### Prerequisites
-* Java 17+
-* Node.js 18+
-* PostgreSQL Database
-* Maven
 
-### Environment Variables
-For optimal security, credentials are never stored in the codebase. Create a `.env` file in `src/main/resources/` or define them in your environment:
+- Java 17+
+- Node.js 18+
+- Maven 3.8+
+- A [Supabase](https://supabase.com) project (free tier works)
+
+### 1. Backend
+
+Create `src/main/resources/.env` (copy from `.env.example`):
 
 ```env
-# Database
-DB_URL=jdbc:postgresql://localhost:5432/social_media_db
+DB_URL=jdbc:postgresql://<supabase-host>:5432/postgres
 DB_USER=postgres
-DB_PASS=your_super_secret_password
+DB_PASS=your_db_password
 
-# Authentication
-JWT_SECRET=your_base64_encoded_secure_string
+JWT_SECRET=<base64-string — generate: openssl rand -base64 64>
 
-# Storage
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_KEY=your_supabase_anon_key
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your_service_role_key          # NOT the anon key
 
-# External Services (Optional)
-MAIL_USERNAME=your_email@gmail.com
-MAIL_PASSWORD=your_app_password
+MAIL_USERNAME=your_gmail@gmail.com
+MAIL_PASSWORD=your_gmail_app_password
+
+APP_FRONTEND_URL=http://localhost:5173
+APP_VERIFICATION_URL=http://localhost:5173/verify
+APP_RESET_PASSWORD_URL=http://localhost:5173/reset-password
 ```
-
-### Running the Backend
 
 ```bash
-mvn clean install
 mvn spring-boot:run
+# Backend runs on http://localhost:8080
 ```
 
-The server will start on `http://localhost:8080`.
-* **Health Check**: `http://localhost:8080/actuator/health`
-* **Prometheus Metrics**: `http://localhost:8080/actuator/prometheus`
+Health check: `http://localhost:8080/actuator/health`
 
-### Running the Frontend
+### 2. Frontend
+
+Create `frontend/.env` (copy from `frontend/.env.example`):
+
+```env
+VITE_API_URL=http://localhost:8080/api
+```
 
 ```bash
 cd frontend
 npm install
 npm run dev
+# Frontend runs on http://localhost:5173
 ```
 
-The frontend will start on `http://localhost:5173`.
+### 3. Database Security (Supabase)
+
+Run `fix_rls_security.sql` once in **Supabase Dashboard → SQL Editor** to enable RLS on all tables. The backend is completely unaffected (service role bypasses RLS).
 
 ---
-*Built for scale, secured by design.*
+
+## Environment Variables Reference
+
+### Backend (`.env.example`)
+
+| Variable | Description |
+|----------|-------------|
+| `DB_URL` | Supabase PostgreSQL JDBC connection string |
+| `DB_USER` / `DB_PASS` | Database credentials |
+| `JWT_SECRET` | Base64 secret for HS256 signing (min 64 chars) |
+| `SUPABASE_URL` | Your Supabase project URL |
+| `SUPABASE_KEY` | **Service role key** — never the anon key |
+| `MAIL_USERNAME` | Gmail SMTP account |
+| `MAIL_PASSWORD` | Gmail App Password |
+| `APP_FRONTEND_URL` | Frontend URL for CORS |
+| `APP_MAIL_FROM` | From address shown to email recipients |
+| `APP_MAIL_DISPLAY_NAME` | Display name shown to email recipients |
+| `APP_VERIFICATION_URL` | Base URL for email verification links |
+| `APP_RESET_PASSWORD_URL` | Base URL for password reset links |
+
+### Frontend (`frontend/.env.example`)
+
+| Variable | Description |
+|----------|-------------|
+| `VITE_API_URL` | Spring Boot backend base URL |
+
+---
+
+## Deployment
+
+| Service | Platform |
+|---------|----------|
+| Frontend | Vercel (auto-deploy from `main`) |
+| Backend | Render (Docker or JAR) |
+| Database | Supabase (hosted PostgreSQL) |
+| Storage | Supabase Storage |
+| Domain | friendshub.me → Vercel |
+
+---
+
+## API Highlights
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/auth/register` | Register + send verification email |
+| `POST` | `/api/auth/login` | Login → JWT |
+| `POST` | `/api/auth/refresh` | Refresh JWT |
+| `GET` | `/api/users/profile` | Get own profile |
+| `GET` | `/api/posts` | Paginated feed |
+| `POST` | `/api/posts` | Create post |
+| `POST` | `/api/posts/{id}/like` | Toggle like |
+| `GET` | `/api/stories` | Get active stories |
+| `GET` | `/api/chat/conversations` | DM conversation list |
+| `GET` | `/api/chat/groups` | Group list |
+| `GET` | `/api/notifications` | Notifications |
+| `WS` | `/ws` | WebSocket endpoint (STOMP) |
+
+---
+
+<div align="center">
+Built with ☕ Java and ⚛️ React &nbsp;·&nbsp; <a href="https://friendshub.me">friendshub.me</a>
+</div>
