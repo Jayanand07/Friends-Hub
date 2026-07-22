@@ -44,9 +44,11 @@ export default function LoginPage() {
         try {
             const { forgotPassword } = await import('../api/auth');
             await forgotPassword(resetEmail);
-            toast.success('Reset link sent to your email! 📧');
+            toast.success('Reset link & OTP sent to your email! 📧');
             setIsForgotPassword(false);
+            const targetEmail = resetEmail;
             setResetEmail('');
+            navigate(`/reset-password?email=${encodeURIComponent(targetEmail)}`);
         } catch (err) {
             const msg = err.response?.data?.message || 'Failed to send reset link.';
             setError(msg);

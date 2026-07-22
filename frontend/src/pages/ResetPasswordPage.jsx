@@ -8,8 +8,8 @@ import { useToast } from '../components/Toast';
 
 export default function ResetPasswordPage() {
     const [searchParams] = useSearchParams();
-    const [email, setEmail] = useState('');
-    const [otp, setOtp] = useState('');
+    const [email, setEmail] = useState(searchParams.get('email') || '');
+    const [otp, setOtp] = useState(searchParams.get('otp') || searchParams.get('token') || '');
     const navigate = useNavigate();
     const toast = useToast();
 
@@ -18,6 +18,13 @@ export default function ResetPasswordPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
+
+    useEffect(() => {
+        const eParam = searchParams.get('email');
+        const oParam = searchParams.get('otp') || searchParams.get('token');
+        if (eParam) setEmail(eParam);
+        if (oParam) setOtp(oParam);
+    }, [searchParams]);
 
 
 

@@ -66,7 +66,7 @@ public class EmailService {
             log.info("Verification email successfully sent to {}", toEmail);
 
         } catch (Exception e) {
-            log.error("Failed to send verification email to {}: {}", toEmail, e.getMessage());
+            log.error("Failed to send verification email to {}: {}", toEmail, e.getMessage(), e);
         }
     }
 
@@ -86,7 +86,7 @@ public class EmailService {
             log.info("Password reset email successfully sent to {}", toEmail);
 
         } catch (Exception e) {
-            log.error("Failed to send reset email to {}: {}", toEmail, e.getMessage());
+            log.error("Failed to send reset email to {}: {}", toEmail, e.getMessage(), e);
         }
     }
 
@@ -98,12 +98,14 @@ public class EmailService {
     public void sendOtpEmail(String toEmail, String otp) {
         log.info("Preparing OTP email for {}", toEmail);
         try {
-            String subject = "Your Password Reset OTP";
-            String textBody = "<p>Your password reset OTP is: <strong>" + otp + "</strong></p><p>This OTP is valid for 10 minutes.</p>";
-            sendHtmlEmail(toEmail, subject, textBody);
+            String encodedEmail = java.net.URLEncoder.encode(toEmail, java.nio.charset.StandardCharsets.UTF_8);
+            String resetLink = resetPasswordUrl + "?email=" + encodedEmail + "&otp=" + otp;
+            String subject = "Your Password Reset OTP & Link - FriendsHub";
+            String htmlBody = buildOtpAndResetLinkHtml(toEmail, otp, resetLink);
+            sendHtmlEmail(toEmail, subject, htmlBody);
             log.info("OTP email successfully sent to {}", toEmail);
         } catch (Exception e) {
-            log.error("Failed to send OTP email to {}: {}", toEmail, e.getMessage());
+            log.error("Failed to send OTP email to {}: {}", toEmail, e.getMessage(), e);
         }
     }
 
@@ -117,11 +119,18 @@ public class EmailService {
         MimeMessage message = javaMailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-        // "FriendsHub" <noreply@friendshub.me>
-        // Gmail SMTP sends on behalf of this display name/address.
-        // If your Gmail account blocks spoofed From, switch fromAddress to smtpUsername.
-        helper.setFrom(new InternetAddress(fromAddress, displayName));
-        helper.setReplyTo(new InternetAddress(replyTo, displayName));
+        // Fallback to smtpUsername if fromAddress is blank or default unauthenticated address
+        String effectiveFrom = fromAddress;
+        if (effectiveFrom == null || effectiveFrom.isBlank() || "noreply@friendshub.me".equals(effectiveFrom)) {
+            if (smtpUsername != null && !smtpUsername.isBlank() && smtpUsername.contains("@")) {
+                effectiveFrom = smtpUsername;
+            }
+        }
+
+        helper.setFrom(new InternetAddress(effectiveFrom, displayName));
+        if (replyTo != null && !replyTo.isBlank()) {
+            helper.setReplyTo(new InternetAddress(replyTo, displayName));
+        }
         helper.setTo(toEmail);
         helper.setSubject(subject);
         helper.setText(htmlBody, true); // true = HTML
@@ -303,6 +312,93 @@ public class EmailService {
                "            <p style=\"margin:0 0 8px;font-size:12px;color:#52525b;line-height:1.6;\">" +
                "              If you didn&rsquo;t request a password reset, you can safely ignore this email." +
                "              Your password won&rsquo;t change." +
+               "            </p>" +
+               "            <p style=\"margin:0;font-size:12px;color:#3f3f46;\">" +
+               "              &copy; 2025 FriendsHub &middot;" +
+               "              <a href=\"https://friendshub.me\" style=\"color:#3f3f46;text-decoration:none;\">friendshub.me</a>" +
+               "            </p>" +
+               "          </td>" +
+               "        </tr>" +
+
+               "      </table>" +
+
+               "    </td></tr>" +
+               "  </table>" +
+
+               "</body></html>";
+    }
+
+    private String buildOtpAndResetLinkHtml(String toEmail, String otp, String resetLink) {
+        return "<!DOCTYPE html>" +
+               "<html lang=\"en\">" +
+               "<head>" +
+               "  <meta charset=\"UTF-8\">" +
+               "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">" +
+               "  <title>Reset your FriendsHub password</title>" +
+               "</head>" +
+               "<body style=\"margin:0;padding:0;background-color:#0a0a0a;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;\">" +
+
+               "  <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\"" +
+               "         style=\"background-color:#0a0a0a;\">" +
+               "    <tr><td align=\"center\" style=\"padding:40px 16px;\">" +
+
+               "      <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\"" +
+               "             style=\"max-width:580px;background-color:#111111;border-radius:16px;" +
+               "                    border:1px solid #222222;overflow:hidden;\">" +
+
+               "        <tr>" +
+               "          <td align=\"center\" style=\"padding:40px 48px 32px;background-color:#0f0f0f;" +
+               "                                    border-bottom:1px solid #1e1e1e;\">" +
+               "            <div style=\"display:inline-block;\">" +
+               "              <span style=\"display:inline-block;width:44px;height:44px;border-radius:12px;" +
+               "                          background:linear-gradient(135deg,#6366f1 0%,#8b5cf6 100%);" +
+               "                          text-align:center;line-height:44px;font-size:22px;vertical-align:middle;" +
+               "                          margin-right:10px;\">&#10024;</span>" +
+               "              <span style=\"font-size:26px;font-weight:800;color:#ffffff;vertical-align:middle;" +
+               "                          letter-spacing:-0.5px;\">FriendsHub</span>" +
+               "            </div>" +
+               "          </td>" +
+               "        </tr>" +
+
+               "        <tr>" +
+               "          <td style=\"padding:40px 48px 32px;\">" +
+
+               "            <h1 style=\"margin:0 0 16px;font-size:22px;font-weight:700;color:#ffffff;" +
+               "                       line-height:1.3;\">Reset your password</h1>" +
+
+               "            <p style=\"margin:0 0 24px;font-size:15px;color:#a1a1aa;line-height:1.7;\">" +
+               "              We received a request to reset your FriendsHub password. Enter the OTP code below or click the button. This code expires in <strong style=\"color:#e4e4e7;\">10 minutes</strong>." +
+               "            </p>" +
+
+               "            <div style=\"margin:0 0 28px;padding:16px;background-color:#18181b;border:1px solid #27272a;border-radius:12px;text-align:center;\">" +
+               "              <span style=\"font-size:32px;font-weight:800;letter-spacing:6px;color:#6366f1;font-family:monospace;\">" + escapeHtml(otp) + "</span>" +
+               "            </div>" +
+
+               "            <table role=\"presentation\" cellspacing=\"0\" cellpadding=\"0\" border=\"0\">" +
+               "              <tr>" +
+               "                <td style=\"border-radius:10px;background:linear-gradient(135deg,#f59e0b 0%,#ef4444 100%);\">" +
+               "                  <a href=\"" + resetLink + "\"" +
+               "                     style=\"display:inline-block;padding:14px 32px;font-size:15px;font-weight:700;" +
+               "                            color:#ffffff;text-decoration:none;border-radius:10px;letter-spacing:0.2px;\">" +
+               "                    Reset Password Now &rarr;" +
+               "                  </a>" +
+               "                </td>" +
+               "              </tr>" +
+               "            </table>" +
+
+               "            <p style=\"margin:24px 0 0;font-size:12px;color:#52525b;line-height:1.6;\">" +
+               "              Button not working? Copy and paste this link into your browser:<br>" +
+               "              <a href=\"" + resetLink + "\" style=\"color:#6366f1;word-break:break-all;\">" +
+               resetLink +
+               "              </a>" +
+               "            </p>" +
+               "          </td>" +
+               "        </tr>" +
+
+               "        <tr>" +
+               "          <td style=\"padding:24px 48px;background-color:#0f0f0f;border-top:1px solid #1e1e1e;\">" +
+               "            <p style=\"margin:0 0 8px;font-size:12px;color:#52525b;line-height:1.6;\">" +
+               "              If you didn&rsquo;t request a password reset, you can safely ignore this email." +
                "            </p>" +
                "            <p style=\"margin:0;font-size:12px;color:#3f3f46;\">" +
                "              &copy; 2025 FriendsHub &middot;" +

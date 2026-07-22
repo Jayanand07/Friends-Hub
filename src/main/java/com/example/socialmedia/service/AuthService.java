@@ -135,6 +135,9 @@ public class AuthService {
     }
 
     public String verifyAccount(String token) {
+        if (token == null || token.isBlank()) {
+            throw new RuntimeException("Verification token is required");
+        }
         String hashedIncoming = hashToken(token);
         User user = userRepository.findByVerificationToken(hashedIncoming)
                 .orElseThrow(() -> new RuntimeException("Invalid verification token"));
@@ -164,28 +167,29 @@ public class AuthService {
 
     @Transactional
     public String forgotPassword(String email) {
-        // Find user if want to throw (prompt says "Returns 200 OK (don't reveal if email exists or not)")
-        Optional<User> userOpt = userRepository.findByEmail(email);
+        String normalizedEmail = email != null ? email.trim().toLowerCase() : "";
+        Optional<User> userOpt = userRepository.findByEmail(normalizedEmail);
         if (userOpt.isPresent()) {
             String otp = String.format("%06d", new Random().nextInt(999999));
-            redisTemplate.opsForValue().set("otp:" + email, otp, Duration.ofMinutes(10));
-            emailService.sendOtpEmail(email, otp);
+            redisTemplate.opsForValue().set("otp:" + normalizedEmail, otp, Duration.ofMinutes(10));
+            emailService.sendOtpEmail(normalizedEmail, otp);
         }
         return "If that email exists, an OTP has been sent.";
     }
 
     @Transactional
     public String resetPassword(String email, String otp, String newPassword) {
-        String storedOtp = (String) redisTemplate.opsForValue().get("otp:" + email);
+        String normalizedEmail = email != null ? email.trim().toLowerCase() : "";
+        String storedOtp = (String) redisTemplate.opsForValue().get("otp:" + normalizedEmail);
         if (storedOtp == null || !storedOtp.equals(otp)) {
             throw new RuntimeException("Invalid or expired OTP");
         }
         
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userRepository.findByEmail(normalizedEmail).orElseThrow(() -> new RuntimeException("User not found"));
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
         
-        redisTemplate.delete("otp:" + email);
+        redisTemplate.delete("otp:" + normalizedEmail);
         return "Password reset successfully. You can now login.";
     }
 
