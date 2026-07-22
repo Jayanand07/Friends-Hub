@@ -178,12 +178,10 @@ public class EmailService {
             MimeMessage message = javaMailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            String effectiveFrom = fromAddress;
-            if (effectiveFrom == null || effectiveFrom.isBlank() || "noreply@friendshub.me".equals(effectiveFrom)) {
-                if (smtpUsername != null && !smtpUsername.isBlank() && smtpUsername.contains("@")) {
-                    effectiveFrom = smtpUsername;
-                }
-            }
+            // Gmail SMTP requires From address to match authenticated username (smtpUsername)
+            String effectiveFrom = (smtpUsername != null && !smtpUsername.isBlank() && smtpUsername.contains("@"))
+                    ? smtpUsername
+                    : fromAddress;
 
             helper.setFrom(new InternetAddress(effectiveFrom, displayName));
             if (replyTo != null && !replyTo.isBlank()) {
