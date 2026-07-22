@@ -25,16 +25,17 @@ public class EmailService {
         this.javaMailSender = javaMailSender;
     }
 
-    // The actual Gmail SMTP account (used for transport auth)
-    @Value("${spring.mail.username}")
+    @Value("${spring.mail.username:}")
     private String smtpUsername;
+
+    @Value("${resend.api.key:${RESEND_API_KEY:}}")
+    private String resendApiKey;
 
     // Display name shown to recipients — "FriendsHub"
     @Value("${app.mail.display-name:FriendsHub}")
     private String displayName;
 
     // From address shown to recipients — noreply@friendshub.me
-    // Gmail SMTP allows custom From addresses; if blocked, falls back to smtpUsername
     @Value("${app.mail.from-address:noreply@friendshub.me}")
     private String fromAddress;
 
@@ -54,58 +55,62 @@ public class EmailService {
     // Verification Email
     // -------------------------------------------------------------------------
 
-    @Async
-    public void sendVerificationEmail(String toEmail, String token, String firstName) {
+    public boolean sendVerificationEmail(String toEmail, String token, String firstName) {
         log.info("Preparing verification email for {}", toEmail);
-        try {
-            String verifyLink = verificationUrl + "?token=" + token;
-            String subject   = "Verify your FriendsHub account, " + firstName + "!";
-            String htmlBody  = buildVerificationHtml(firstName, verifyLink);
+        String verifyLink = verificationUrl + "?token=" + token;
+        String subject   = "Verify your FriendsHub account, " + firstName + "!";
+        String htmlBody  = buildVerificationHtml(firstName, verifyLink);
 
-            sendHtmlEmail(toEmail, subject, htmlBody);
+        boolean sent = sendHtmlEmail(toEmail, subject, htmlBody);
+        if (!sent) {
+            log.warn("VERIFICATION LINK FOR {}: {}", toEmail, verifyLink);
+        } else {
             log.info("Verification email successfully sent to {}", toEmail);
-
-        } catch (Exception e) {
-            log.error("Failed to send verification email to {}: {}", toEmail, e.getMessage(), e);
         }
+        return sent;
     }
 
     // -------------------------------------------------------------------------
     // Password Reset Email
     // -------------------------------------------------------------------------
 
-    @Async
-    public void sendPasswordResetEmail(String toEmail, String token) {
+    public boolean sendPasswordResetEmail(String toEmail, String token) {
         log.info("Preparing password reset email for {}", toEmail);
-        try {
-            String resetLink = resetPasswordUrl + "?token=" + token;
-            String subject   = "Reset your FriendsHub password";
-            String htmlBody  = buildPasswordResetHtml(resetLink);
+        String resetLink = resetPasswordUrl + "?token=" + token;
+        String subject   = "Reset your FriendsHub password";
+        String htmlBody  = buildPasswordResetHtml(resetLink);
 
-            sendHtmlEmail(toEmail, subject, htmlBody);
+        boolean sent = sendHtmlEmail(toEmail, subject, htmlBody);
+        if (!sent) {
+            log.warn("PASSWORD RESET LINK FOR {}: {}", toEmail, resetLink);
+        } else {
             log.info("Password reset email successfully sent to {}", toEmail);
-
-        } catch (Exception e) {
-            log.error("Failed to send reset email to {}: {}", toEmail, e.getMessage(), e);
         }
+        return sent;
     }
 
     // -------------------------------------------------------------------------
     // OTP Email
     // -------------------------------------------------------------------------
 
-    @Async
-    public void sendOtpEmail(String toEmail, String otp) {
+    public boolean sendOtpEmail(String toEmail, String otp) {
         log.info("Preparing OTP email for {}", toEmail);
         try {
             String encodedEmail = java.net.URLEncoder.encode(toEmail, java.nio.charset.StandardCharsets.UTF_8);
             String resetLink = resetPasswordUrl + "?email=" + encodedEmail + "&otp=" + otp;
             String subject = "Your Password Reset OTP & Link - FriendsHub";
             String htmlBody = buildOtpAndResetLinkHtml(toEmail, otp, resetLink);
-            sendHtmlEmail(toEmail, subject, htmlBody);
-            log.info("OTP email successfully sent to {}", toEmail);
+
+            boolean sent = sendHtmlEmail(toEmail, subject, htmlBody);
+            if (!sent) {
+                log.warn("OTP FOR {}: {} | LINK: {}", toEmail, otp, resetLink);
+            } else {
+                log.info("OTP email successfully sent to {}", toEmail);
+            }
+            return sent;
         } catch (Exception e) {
-            log.error("Failed to send OTP email to {}: {}", toEmail, e.getMessage(), e);
+            log.error("Failed to prepare OTP email for {}: {}", toEmail, e.getMessage(), e);
+            return false;
         }
     }
 
@@ -113,29 +118,99 @@ public class EmailService {
     // Core send method
     // -------------------------------------------------------------------------
 
-    private void sendHtmlEmail(String toEmail, String subject, String htmlBody)
-            throws MessagingException, UnsupportedEncodingException {
-
-        MimeMessage message = javaMailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-
-        // Fallback to smtpUsername if fromAddress is blank or default unauthenticated address
-        String effectiveFrom = fromAddress;
-        if (effectiveFrom == null || effectiveFrom.isBlank() || "noreply@friendshub.me".equals(effectiveFrom)) {
-            if (smtpUsername != null && !smtpUsername.isBlank() && smtpUsername.contains("@")) {
-                effectiveFrom = smtpUsername;
+    public boolean sendHtmlEmail(String toEmail, String subject, String htmlBody) {
+        // 1. Try Resend API if key is present
+        if (resendApiKey != null && !resendApiKey.isBlank()) {
+            if (sendViaResend(toEmail, subject, htmlBody)) {
+                return true;
             }
         }
 
-        helper.setFrom(new InternetAddress(effectiveFrom, displayName));
-        if (replyTo != null && !replyTo.isBlank()) {
-            helper.setReplyTo(new InternetAddress(replyTo, displayName));
+        // 2. Try JavaMailSender (SMTP)
+        if (smtpUsername != null && !smtpUsername.isBlank()) {
+            if (sendViaSmtp(toEmail, subject, htmlBody)) {
+                return true;
+            }
         }
-        helper.setTo(toEmail);
-        helper.setSubject(subject);
-        helper.setText(htmlBody, true); // true = HTML
 
-        javaMailSender.send(message);
+        log.warn("Email service is unconfigured or failed for recipient: {}", toEmail);
+        return false;
+    }
+
+    private boolean sendViaResend(String toEmail, String subject, String htmlBody) {
+        try {
+            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
+            String from = (fromAddress != null && !fromAddress.isBlank() && !"noreply@friendshub.me".equals(fromAddress))
+                    ? fromAddress
+                    : "FriendsHub <onboarding@resend.dev>";
+
+            String jsonPayload = String.format(
+                "{\"from\":\"%s\",\"to\":[\"%s\"],\"subject\":\"%s\",\"html\":\"%s\"}",
+                escapeJson(from),
+                escapeJson(toEmail),
+                escapeJson(subject),
+                escapeJson(htmlBody)
+            );
+
+            java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create("https://api.resend.com/emails"))
+                    .header("Authorization", "Bearer " + resendApiKey.trim())
+                    .header("Content-Type", "application.json")
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(jsonPayload, java.nio.charset.StandardCharsets.UTF_8))
+                    .build();
+
+            java.net.http.HttpResponse<String> resp = client.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+                log.info("Email sent via Resend API to {}", toEmail);
+                return true;
+            } else {
+                log.error("Resend API returned status {}: {}", resp.statusCode(), resp.body());
+                return false;
+            }
+        } catch (Exception e) {
+            log.error("Failed to send email via Resend API: {}", e.getMessage(), e);
+            return false;
+        }
+    }
+
+    private boolean sendViaSmtp(String toEmail, String subject, String htmlBody) {
+        try {
+            MimeMessage message = javaMailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            String effectiveFrom = fromAddress;
+            if (effectiveFrom == null || effectiveFrom.isBlank() || "noreply@friendshub.me".equals(effectiveFrom)) {
+                if (smtpUsername != null && !smtpUsername.isBlank() && smtpUsername.contains("@")) {
+                    effectiveFrom = smtpUsername;
+                }
+            }
+
+            helper.setFrom(new InternetAddress(effectiveFrom, displayName));
+            if (replyTo != null && !replyTo.isBlank()) {
+                helper.setReplyTo(new InternetAddress(replyTo, displayName));
+            }
+            helper.setTo(toEmail);
+            helper.setSubject(subject);
+            helper.setText(htmlBody, true);
+
+            javaMailSender.send(message);
+            log.info("Email sent via SMTP to {}", toEmail);
+            return true;
+        } catch (Exception e) {
+            log.error("Failed to send email via SMTP to {}: {}", toEmail, e.getMessage(), e);
+            return false;
+        }
+    }
+
+    private String escapeJson(String text) {
+        if (text == null) return "";
+        return text.replace("\\", "\\\\")
+                   .replace("\"", "\\\"")
+                   .replace("\b", "\\b")
+                   .replace("\f", "\\f")
+                   .replace("\n", "\\n")
+                   .replace("\r", "\\r")
+                   .replace("\t", "\\t");
     }
 
     // =========================================================================

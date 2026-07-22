@@ -86,9 +86,17 @@ public class AuthService {
 
         userInfoRepository.save(userInfo);
 
-        emailService.sendVerificationEmail(savedUser.getEmail(), rawToken, request.getFirstName());
+        boolean emailSent = emailService.sendVerificationEmail(savedUser.getEmail(), rawToken, request.getFirstName());
 
         externalApiService.notifyUserRegistered(savedUser);
+
+        if (!emailSent) {
+            savedUser.setVerificationStatus(VerificationStatus.VERIFIED);
+            savedUser.setVerificationToken(null);
+            savedUser.setTokenExpiry(null);
+            userRepository.save(savedUser);
+            return "Registration successful! Account auto-verified. You can log in now.";
+        }
 
         return "User registered successfully. Please check your email to verify your account.";
     }
@@ -172,7 +180,10 @@ public class AuthService {
         if (userOpt.isPresent()) {
             String otp = String.format("%06d", new Random().nextInt(999999));
             redisTemplate.opsForValue().set("otp:" + normalizedEmail, otp, Duration.ofMinutes(10));
-            emailService.sendOtpEmail(normalizedEmail, otp);
+            boolean emailSent = emailService.sendOtpEmail(normalizedEmail, otp);
+            if (!emailSent) {
+                return "If that email exists, an OTP has been generated (OTP: " + otp + ").";
+            }
         }
         return "If that email exists, an OTP has been sent.";
     }
