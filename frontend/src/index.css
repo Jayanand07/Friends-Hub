@@ -292,14 +292,14 @@
     font-size: 0.625rem;
   }
 
-  /* Stories-style ring for profile pics */
-  .avatar-story {
+  /* Stories-style ring for profile pics (only when user has active story) */
+  .avatar-story.has-story {
     padding: 3px;
     background: linear-gradient(45deg, var(--gradient-3), var(--gradient-2), var(--gradient-1));
     border-radius: 50%;
   }
 
-  .avatar-story .avatar {
+  .avatar-story.has-story .avatar {
     border: 3px solid var(--bg-primary);
   }
 

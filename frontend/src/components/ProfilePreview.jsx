@@ -122,12 +122,10 @@ export default function ProfilePreview() {
             >
                 {/* Profile card */}
                 <div className="flex items-center gap-3 mb-6">
-                    <div className="avatar-story">
-                        <div className="avatar w-[56px] h-[56px] text-[18px]">
-                            {profilePic ? (
-                                <img src={profilePic} alt={displayName} className="w-full h-full object-cover rounded-full" />
-                            ) : initial}
-                        </div>
+                    <div className="avatar w-[56px] h-[56px] text-[18px] overflow-hidden rounded-full border border-[var(--border-color)]">
+                        {profilePic ? (
+                            <img src={profilePic} alt={displayName} className="w-full h-full object-cover rounded-full" />
+                        ) : initial}
                     </div>
                     <div className="min-w-0">
                         <p className="text-[14px] font-semibold text-[var(--text-primary)] truncate">{displayName}</p>

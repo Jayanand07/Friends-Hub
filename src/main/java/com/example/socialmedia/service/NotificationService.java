@@ -6,6 +6,8 @@ import com.example.socialmedia.entity.User;
 import com.example.socialmedia.entity.UserInfo;
 import com.example.socialmedia.repository.NotificationRepository;
 import com.example.socialmedia.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +17,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class NotificationService {
+    private static final Logger log = LoggerFactory.getLogger(NotificationService.class);
 
     private final NotificationRepository notificationRepo;
     private final UserRepository userRepo;
@@ -34,16 +37,20 @@ public class NotificationService {
 
     public void createNotification(User targetUser, NotificationType type, String content, User actor, Long postId) {
         // Don't notify yourself
-        if (targetUser.getId().equals(actor.getId()))
+        if (targetUser == null || actor == null || targetUser.getId().equals(actor.getId()))
             return;
 
-        Notification notification = new Notification(targetUser, type, content, actor, postId);
-        notificationRepo.save(notification);
+        try {
+            Notification notification = new Notification(targetUser, type, content, actor, postId);
+            notificationRepo.save(notification);
 
-        // Push realtime via WebSocket
-        messagingTemplate.convertAndSend(
-                "/queue/notifications-" + targetUser.getId(),
-                toDTO(notification));
+            // Push realtime via WebSocket
+            messagingTemplate.convertAndSend(
+                    "/queue/notifications-" + targetUser.getId(),
+                    toDTO(notification));
+        } catch (Exception e) {
+            log.warn("Failed to deliver notification/websocket: {}", e.getMessage());
+        }
     }
 
     public List<NotificationDTO> getUserNotifications(String email) {

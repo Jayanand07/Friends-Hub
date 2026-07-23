@@ -1,5 +1,6 @@
 package com.example.socialmedia.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import java.time.LocalDateTime;
 
 public class CommentResponse {
@@ -7,6 +8,8 @@ public class CommentResponse {
     private String content;
     private String commenterName;
     private Long commenterId;
+
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'", timezone = "UTC")
     private LocalDateTime createdAt;
 
     public CommentResponse() {

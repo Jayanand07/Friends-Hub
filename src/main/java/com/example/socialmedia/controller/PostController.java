@@ -72,6 +72,17 @@ public class PostController {
         return ResponseEntity.ok(new MessageResponse(message));
     }
 
+    @PostMapping("/{postId}/save")
+    public ResponseEntity<MessageResponse> savePost(@PathVariable Long postId, Authentication authentication) {
+        String message = postService.toggleSavePost(postId, authentication.getName());
+        return ResponseEntity.ok(new MessageResponse(message));
+    }
+
+    @GetMapping("/saved")
+    public ResponseEntity<Page<PostResponse>> getSavedPosts(Pageable pageable, Authentication authentication) {
+        return ResponseEntity.ok(postService.getSavedPosts(authentication.getName(), pageable));
+    }
+
     @PostMapping("/{postId}/comment")
     public ResponseEntity<MessageResponse> addComment(
             @PathVariable Long postId,

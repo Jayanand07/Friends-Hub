@@ -89,8 +89,7 @@ export default function Navbar({ newNotification }) {
                         <div className="relative" ref={dropdownRef}>
                             <button
                                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                                className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center cursor-pointer border border-transparent hover:border-[var(--text-muted)] transition-colors"
-                                style={{ background: 'linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)' }}
+                                className="w-7 h-7 rounded-full overflow-hidden flex items-center justify-center cursor-pointer border border-transparent hover:border-[var(--text-muted)] transition-colors bg-[var(--accent)]"
                             >
                                 <span className="text-white text-[10px] font-bold">{initial}</span>
                             </button>

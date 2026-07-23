@@ -134,7 +134,7 @@ public class UserService {
 
         return UserProfileResponse.builder()
                 .userId(user.getId())
-                .email(user.getEmail())
+                .email(isMe ? user.getEmail() : null)
                 .firstName(info != null ? info.getFirstName() : null)
                 .lastName(info != null ? info.getLastName() : null)
                 .bio(info != null ? info.getBio() : null)
@@ -423,17 +423,17 @@ public class UserService {
                     User u = userRepository.findById(e.getKey()).orElse(null);
                     if (u == null) return null;
                     return new NetworkGraphResponse.MutualNodeDTO(
-                            u.getId(), firstName(u), u.getEmail(), picUrl(u),
+                            u.getId(), firstName(u), picUrl(u),
                             List.copyOf(e.getValue()));
                 })
                 .filter(java.util.Objects::nonNull)
                 .collect(Collectors.toList());
 
         NetworkGraphResponse.NodeDTO centerNode = new NetworkGraphResponse.NodeDTO(
-                target.getId(), firstName(target), target.getEmail(), picUrl(target));
+                target.getId(), firstName(target), picUrl(target));
 
         List<NetworkGraphResponse.NodeDTO> friendNodes = friends.stream()
-                .map(u -> new NetworkGraphResponse.NodeDTO(u.getId(), firstName(u), u.getEmail(), picUrl(u)))
+                .map(u -> new NetworkGraphResponse.NodeDTO(u.getId(), firstName(u), picUrl(u)))
                 .collect(Collectors.toList());
 
         return new NetworkGraphResponse(centerNode, friendNodes, mutuals);
@@ -461,11 +461,12 @@ public class UserService {
             String name = u.getUserInfo() != null
                     ? ((u.getUserInfo().getFirstName() != null ? u.getUserInfo().getFirstName() : "") +
                        " " + (u.getUserInfo().getLastName() != null ? u.getUserInfo().getLastName() : "")).trim()
-                    : u.getEmail();
+                    : getDisplayName(u);
+            if (name.isBlank()) name = getDisplayName(u);
             String loc = u.getUserInfo() != null ? u.getUserInfo().getLocation() : null;
             String userBio = u.getUserInfo() != null ? u.getUserInfo().getBio() : null;
             String pic = u.getUserInfo() != null ? u.getUserInfo().getProfilePicUrl() : null;
-            return new SearchUserResponse(u.getId(), name, u.getEmail(), pic, loc, userBio, (int) mutual, following);
+            return new SearchUserResponse(u.getId(), name, pic, loc, userBio, (int) mutual, following);
         }).collect(Collectors.toList());
 
         if (mutualOnly) {
@@ -546,10 +547,10 @@ public class UserService {
         String name = info != null
                 ? ((info.getFirstName() != null ? info.getFirstName() : "") + " "
                    + (info.getLastName() != null ? info.getLastName() : "")).trim()
-                : u.getEmail();
-        if (name.isBlank()) name = u.getEmail();
+                : getDisplayName(u);
+        if (name.isBlank()) name = getDisplayName(u);
 
-        return new RecommendationResponse(u.getId(), name, u.getEmail(),
+        return new RecommendationResponse(u.getId(), name,
                 info != null ? info.getProfilePicUrl() : null,
                 theirLoc, info != null ? info.getBio() : null,
                 Math.min(score, 98), reasons);
@@ -608,12 +609,12 @@ public class UserService {
     private FollowUserResponse mapToFollowUserResponse(User user) {
         String name;
         String profilePicUrl = null;
-        if (user.getUserInfo() != null) {
-            name = user.getUserInfo().getFirstName() + " " + user.getUserInfo().getLastName();
+        if (user.getUserInfo() != null && user.getUserInfo().getFirstName() != null) {
+            name = (user.getUserInfo().getFirstName() + " " + (user.getUserInfo().getLastName() != null ? user.getUserInfo().getLastName() : "")).trim();
             profilePicUrl = user.getUserInfo().getProfilePicUrl();
         } else {
-            name = user.getEmail();
+            name = getDisplayName(user);
         }
-        return new FollowUserResponse(user.getId(), name, profilePicUrl, user.getEmail());
+        return new FollowUserResponse(user.getId(), name, profilePicUrl);
     }
 }

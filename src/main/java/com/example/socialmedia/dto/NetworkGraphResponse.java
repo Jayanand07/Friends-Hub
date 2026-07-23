@@ -21,27 +21,24 @@ public class NetworkGraphResponse {
     public static class NodeDTO {
         private Long id;
         private String firstName;
-        private String email;
         private String profilePicUrl;
 
-        public NodeDTO(Long id, String firstName, String email, String profilePicUrl) {
+        public NodeDTO(Long id, String firstName, String profilePicUrl) {
             this.id = id;
             this.firstName = firstName;
-            this.email = email;
             this.profilePicUrl = profilePicUrl;
         }
 
         public Long getId() { return id; }
         public String getFirstName() { return firstName; }
-        public String getEmail() { return email; }
         public String getProfilePicUrl() { return profilePicUrl; }
     }
 
     public static class MutualNodeDTO extends NodeDTO {
         private List<Long> mutualFriendIds;
 
-        public MutualNodeDTO(Long id, String firstName, String email, String profilePicUrl, List<Long> mutualFriendIds) {
-            super(id, firstName, email, profilePicUrl);
+        public MutualNodeDTO(Long id, String firstName, String profilePicUrl, List<Long> mutualFriendIds) {
+            super(id, firstName, profilePicUrl);
             this.mutualFriendIds = mutualFriendIds;
         }
 

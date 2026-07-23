@@ -10,8 +10,10 @@ import com.example.socialmedia.repository.PostRepository;
 import com.example.socialmedia.repository.UserRepository;
 import com.example.socialmedia.repository.LikeRepository;
 import com.example.socialmedia.repository.CommentRepository;
+import com.example.socialmedia.repository.SavedPostRepository;
 import com.example.socialmedia.entity.Like;
 import com.example.socialmedia.entity.Comment;
+import com.example.socialmedia.entity.SavedPost;
 import com.example.socialmedia.dto.CommentRequest;
 import com.example.socialmedia.dto.CommentResponse;
 import com.example.socialmedia.service.kafka.EventProducerService;
@@ -45,6 +47,7 @@ public class PostService {
         private final UserRepository userRepository;
         private final LikeRepository likeRepository;
         private final CommentRepository commentRepository;
+        private final SavedPostRepository savedPostRepository;
         private final ExternalApiService externalApiService;
         private final NotificationService notificationService;
         private final com.example.socialmedia.repository.FollowRepository followRepository;
@@ -53,6 +56,7 @@ public class PostService {
 
         public PostService(PostRepository postRepository, UserRepository userRepository,
                         LikeRepository likeRepository, CommentRepository commentRepository,
+                        SavedPostRepository savedPostRepository,
                         ExternalApiService externalApiService, NotificationService notificationService,
                         com.example.socialmedia.repository.FollowRepository followRepository,
                         com.example.socialmedia.repository.BlockRepository blockRepository,
@@ -61,6 +65,7 @@ public class PostService {
                 this.userRepository = userRepository;
                 this.likeRepository = likeRepository;
                 this.commentRepository = commentRepository;
+                this.savedPostRepository = savedPostRepository;
                 this.externalApiService = externalApiService;
                 this.notificationService = notificationService;
                 this.followRepository = followRepository;
@@ -152,7 +157,7 @@ public class PostService {
                 @CacheEvict(value = "posts", allEntries = true)
         })
         public String toggleLike(Long postId, String email) {
-                User user = userRepository.findByEmail(email)
+                User user = userRepository.findByEmailIgnoreCase(email)
                                 .orElseThrow(() -> new RuntimeException("User not found"));
 
                 Post post = postRepository.findById(postId)
@@ -170,13 +175,17 @@ public class PostService {
                         likeRepository.save(like);
 
                         // Save in-app notification & push real-time STOMP
-                        notificationService.createNotification(
-                                post.getUser(),
-                                NotificationType.LIKE,
-                                getDisplayName(user) + " liked your post",
-                                user,
-                                postId
-                        );
+                        try {
+                                notificationService.createNotification(
+                                        post.getUser(),
+                                        NotificationType.LIKE,
+                                        getDisplayName(user) + " liked your post",
+                                        user,
+                                        postId
+                                );
+                        } catch (Exception e) {
+                                log.warn("Failed to create like notification: {}", e.getMessage());
+                        }
 
                         // Send async notification via Kafka (non-blocking)
                         sendNotificationEvent(
@@ -197,8 +206,38 @@ public class PostService {
                 @CacheEvict(value = "feed", allEntries = true),
                 @CacheEvict(value = "posts", allEntries = true)
         })
+        public String toggleSavePost(Long postId, String email) {
+                User user = userRepository.findByEmailIgnoreCase(email)
+                                .orElseThrow(() -> new RuntimeException("User not found"));
+
+                Post post = postRepository.findById(postId)
+                                .orElseThrow(() -> new RuntimeException("Post not found"));
+
+                Optional<SavedPost> existingSaved = savedPostRepository.findByUserAndPost(user, post);
+
+                if (existingSaved.isPresent()) {
+                        savedPostRepository.delete(existingSaved.get());
+                        return "Post unsaved";
+                } else {
+                        SavedPost savedPost = new SavedPost(user, post);
+                        savedPostRepository.save(savedPost);
+                        return "Post saved";
+                }
+        }
+
+        @Transactional(readOnly = true)
+        public Page<PostResponse> getSavedPosts(String email, Pageable pageable) {
+                Page<Post> postsPage = savedPostRepository.findSavedPostsByUserEmail(email, pageable);
+                return mapToPostResponsePage(postsPage, email);
+        }
+
+        @Transactional
+        @Caching(evict = {
+                @CacheEvict(value = "feed", allEntries = true),
+                @CacheEvict(value = "posts", allEntries = true)
+        })
         public void addComment(Long postId, CommentRequest request, String email) {
-                User user = userRepository.findByEmail(email)
+                User user = userRepository.findByEmailIgnoreCase(email)
                                 .orElseThrow(() -> new RuntimeException("User not found"));
 
                 Post post = postRepository.findById(postId)
@@ -212,13 +251,17 @@ public class PostService {
                 commentRepository.save(comment);
 
                 // Save in-app notification & push real-time STOMP
-                notificationService.createNotification(
-                        post.getUser(),
-                        NotificationType.COMMENT,
-                        getDisplayName(user) + " commented on your post",
-                        user,
-                        postId
-                );
+                try {
+                        notificationService.createNotification(
+                                post.getUser(),
+                                NotificationType.COMMENT,
+                                getDisplayName(user) + " commented on your post",
+                                user,
+                                postId
+                        );
+                } catch (Exception e) {
+                        log.warn("Failed to create comment notification: {}", e.getMessage());
+                }
 
                 // Send async notification via Kafka (non-blocking)
                 sendNotificationEvent(
@@ -252,13 +295,7 @@ public class PostService {
         public Page<CommentResponse> getCommentsByPost(Long postId, Pageable pageable) {
                 return commentRepository.findByPostId(postId, pageable)
                                 .map(comment -> {
-                                        String name = "Unknown";
-                                        if (comment.getUser().getUserInfo() != null) {
-                                                name = comment.getUser().getUserInfo().getFirstName() + " "
-                                                                + comment.getUser().getUserInfo().getLastName();
-                                        } else {
-                                                name = comment.getUser().getEmail();
-                                        }
+                                        String name = getDisplayName(comment.getUser());
                                         return new CommentResponse(
                                                         comment.getId(),
                                                         comment.getContent(),
@@ -308,6 +345,11 @@ public class PostService {
                                 ? likeRepository.findLikedPostIdsByUserEmailAndPostIdIn(currentUserEmail, postIds)
                                 : Collections.emptySet();
 
+                // 1 Batch query for saved status
+                Set<Long> savedPostIds = (currentUserEmail != null && !currentUserEmail.isEmpty())
+                                ? savedPostRepository.findSavedPostIdsByUserEmailAndPostIdIn(currentUserEmail, postIds)
+                                : Collections.emptySet();
+
                 // 1 Batch query for like counts
                 Map<Long, Long> likeCounts = likeRepository.countLikesByPostIdIn(postIds).stream()
                                 .collect(Collectors.toMap(arr -> (Long) arr[0], arr -> (Long) arr[1]));
@@ -324,12 +366,13 @@ public class PostService {
                                 String ln = post.getUser().getUserInfo().getLastName();
                                 authorName = (fn + " " + (ln != null ? ln : "")).trim();
                         } else if (post.getUser() != null) {
-                                authorName = post.getUser().getEmail();
+                                authorName = getDisplayName(post.getUser());
                         } else {
                                 authorName = "Unknown";
                         }
 
                         boolean isLiked = likedPostIds.contains(post.getId());
+                        boolean isSaved = savedPostIds.contains(post.getId());
                         long likeCount = likeCounts.getOrDefault(post.getId(), 0L);
                         long commentCount = commentCounts.getOrDefault(post.getId(), 0L);
 
@@ -343,6 +386,7 @@ public class PostService {
                                         .commentCount((int) commentCount)
                                         .createdAt(post.getCreatedAt())
                                         .isLiked(isLiked)
+                                        .isSaved(isSaved)
                                         .build();
 
                         mappedMap.put(post.getId(), resp);
@@ -353,19 +397,18 @@ public class PostService {
 
         private PostResponse mapToPostResponse(Post post, String currentUserEmail) {
                 boolean isLiked = likeRepository.existsByUserEmailAndPostId(currentUserEmail, post.getId());
+                boolean isSaved = savedPostRepository.existsByUserEmailAndPostId(currentUserEmail, post.getId());
                 return PostResponse.builder()
                                 .id(post.getId())
                                 .content(post.getContent())
                                 .imageUrl(post.getImageUrl())
-                                .authorName(post.getUser().getUserInfo() != null
-                                                ? post.getUser().getUserInfo().getFirstName() + " "
-                                                                + post.getUser().getUserInfo().getLastName()
-                                                : post.getUser().getEmail())
+                                .authorName(post.getUser() != null ? getDisplayName(post.getUser()) : "Unknown")
                                 .authorId(post.getUser().getId())
                                 .likeCount(post.getLikes() != null ? post.getLikes().size() : 0)
                                 .commentCount(post.getComments() != null ? post.getComments().size() : 0)
                                 .createdAt(post.getCreatedAt())
                                 .isLiked(isLiked)
+                                .isSaved(isSaved)
                                 .build();
         }
 

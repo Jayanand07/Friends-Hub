@@ -77,12 +77,11 @@ export default function StoriesBar() {
                                 <div className={`p-[3px] rounded-full ${su.hasUnviewed
                                     ? 'bg-gradient-to-tr from-[#fcb045] via-[#fd1d1d] to-[#833ab4]'
                                     : 'bg-[var(--border-hover)]'}`}>
-                                    <div className="w-[56px] h-[56px] rounded-full border-[3px] border-[var(--bg-primary)] overflow-hidden flex items-center justify-center"
-                                        style={{ background: su.profilePicUrl ? 'transparent' : 'linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)' }}>
+                                    <div className="w-[56px] h-[56px] rounded-full border-[3px] border-[var(--bg-primary)] overflow-hidden flex items-center justify-center bg-[var(--bg-elevated)]">
                                         {su.profilePicUrl ? (
                                             <img src={su.profilePicUrl} alt={su.name} className="w-full h-full object-cover" />
                                         ) : (
-                                            <span className="text-white text-[16px] font-bold">{initial}</span>
+                                            <span className="text-[var(--accent)] text-[18px] font-bold">{initial}</span>
                                         )}
                                     </div>
                                 </div>

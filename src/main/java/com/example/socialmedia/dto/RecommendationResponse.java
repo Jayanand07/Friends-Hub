@@ -5,18 +5,16 @@ import java.util.List;
 public class RecommendationResponse {
     private Long id;
     private String name;
-    private String email;
     private String profilePicUrl;
     private String location;
     private String bio;
     private int matchScore;
     private List<String> matchReasons;
 
-    public RecommendationResponse(Long id, String name, String email, String profilePicUrl,
+    public RecommendationResponse(Long id, String name, String profilePicUrl,
                                   String location, String bio, int matchScore, List<String> matchReasons) {
         this.id = id;
         this.name = name;
-        this.email = email;
         this.profilePicUrl = profilePicUrl;
         this.location = location;
         this.bio = bio;
@@ -26,7 +24,6 @@ public class RecommendationResponse {
 
     public Long getId() { return id; }
     public String getName() { return name; }
-    public String getEmail() { return email; }
     public String getProfilePicUrl() { return profilePicUrl; }
     public String getLocation() { return location; }
     public String getBio() { return bio; }

@@ -1,6 +1,7 @@
 package com.example.socialmedia.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDateTime;
 
 public class PostResponse {
@@ -11,15 +12,23 @@ public class PostResponse {
     private Long authorId;
     private int likeCount;
     private int commentCount;
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'", timezone = "UTC")
     private LocalDateTime createdAt;
     private boolean isLiked;
+
+    @JsonProperty("isSaved")
+    private boolean isSaved;
 
     public PostResponse() {
     }
 
     public PostResponse(Long id, String content, String imageUrl, String authorName, Long authorId, int likeCount,
             int commentCount, LocalDateTime createdAt, boolean isLiked) {
+        this(id, content, imageUrl, authorName, authorId, likeCount, commentCount, createdAt, isLiked, false);
+    }
+
+    public PostResponse(Long id, String content, String imageUrl, String authorName, Long authorId, int likeCount,
+            int commentCount, LocalDateTime createdAt, boolean isLiked, boolean isSaved) {
         this.id = id;
         this.content = content;
         this.imageUrl = imageUrl;
@@ -29,6 +38,7 @@ public class PostResponse {
         this.commentCount = commentCount;
         this.createdAt = createdAt;
         this.isLiked = isLiked;
+        this.isSaved = isSaved;
     }
 
     // Getters and Setters
@@ -104,6 +114,14 @@ public class PostResponse {
         isLiked = liked;
     }
 
+    public boolean isSaved() {
+        return isSaved;
+    }
+
+    public void setSaved(boolean saved) {
+        isSaved = saved;
+    }
+
     public static PostResponseBuilder builder() {
         return new PostResponseBuilder();
     }
@@ -118,6 +136,7 @@ public class PostResponse {
         private int commentCount;
         private LocalDateTime createdAt;
         private boolean isLiked;
+        private boolean isSaved;
 
         PostResponseBuilder() {
         }
@@ -167,8 +186,13 @@ public class PostResponse {
             return this;
         }
 
+        public PostResponseBuilder isSaved(boolean isSaved) {
+            this.isSaved = isSaved;
+            return this;
+        }
+
         public PostResponse build() {
-            return new PostResponse(id, content, imageUrl, authorName, authorId, likeCount, commentCount, createdAt, isLiked);
+            return new PostResponse(id, content, imageUrl, authorName, authorId, likeCount, commentCount, createdAt, isLiked, isSaved);
         }
     }
 }

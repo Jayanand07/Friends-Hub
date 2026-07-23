@@ -154,12 +154,11 @@ export default function Sidebar({ onCreatePost, isCreateOpen }) {
                                 <div className="absolute inset-0 bg-gradient-to-r from-[var(--gradient-1)] to-[var(--gradient-2)] opacity-100 z-0" />
                             )}
                             <div className="relative z-10 flex items-center gap-3.5">
-                                <div className={`w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-[9px] font-bold ${isActive ? 'ring-2 ring-white/50' : ''}`}
-                                    style={{ background: profilePic ? 'transparent' : 'linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)' }}>
+                                <div className={`w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-[10px] font-bold bg-[var(--accent)] text-white ${isActive ? 'ring-2 ring-white/50' : ''}`}>
                                     {profilePic ? (
                                         <img src={profilePic} alt="Profile" className="w-full h-full object-cover" />
                                     ) : (
-                                        <span className="text-white">{initial}</span>
+                                        <span>{initial}</span>
                                     )}
                                 </div>
                                 <span className="hidden md:block lg:block">Profile</span>

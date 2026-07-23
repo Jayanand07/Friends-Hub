@@ -4,7 +4,6 @@ public class FollowUserResponse {
     private Long id;
     private String name;
     private String profilePicUrl;
-    private String email;
 
     public FollowUserResponse() {
     }
@@ -13,13 +12,6 @@ public class FollowUserResponse {
         this.id = id;
         this.name = name;
         this.profilePicUrl = profilePicUrl;
-    }
-
-    public FollowUserResponse(Long id, String name, String profilePicUrl, String email) {
-        this.id = id;
-        this.name = name;
-        this.profilePicUrl = profilePicUrl;
-        this.email = email;
     }
 
     public Long getId() {
@@ -44,13 +36,5 @@ public class FollowUserResponse {
 
     public void setProfilePicUrl(String profilePicUrl) {
         this.profilePicUrl = profilePicUrl;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
     }
 }

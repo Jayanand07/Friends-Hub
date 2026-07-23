@@ -23,7 +23,7 @@ public interface LikeRepository extends JpaRepository<Like, Long> {
     @Query("SELECT COUNT(l) FROM Like l WHERE l.user = :liker AND l.post.user = :postOwner")
     long countLikesByLikerOnOwnerPosts(@Param("liker") User liker, @Param("postOwner") User postOwner);
 
-    @Query("SELECT l.post.id FROM Like l WHERE l.user.email = :email AND l.post.id IN :postIds")
+    @Query("SELECT l.post.id FROM Like l WHERE LOWER(l.user.email) = LOWER(:email) AND l.post.id IN :postIds")
     java.util.Set<Long> findLikedPostIdsByUserEmailAndPostIdIn(@Param("email") String email, @Param("postIds") java.util.List<Long> postIds);
 
     @Query("SELECT l.post.id, COUNT(l.id) FROM Like l WHERE l.post.id IN :postIds GROUP BY l.post.id")

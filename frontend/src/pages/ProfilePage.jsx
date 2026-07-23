@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Settings, Users, MapPin, Calendar, Loader, Camera, Grid3X3, Lock, UserPlus, UserCheck, UserX, Network, BarChart2, Trophy } from 'lucide-react';
+import { Settings, Users, MapPin, Calendar, Loader, Camera, Grid3X3, Lock, UserPlus, UserCheck, UserX, Network, BarChart2, Trophy, Bookmark } from 'lucide-react';
 import NetworkGraph from '../components/NetworkGraph';
 import FriendStats from '../components/FriendStats';
 import ProfileCompletenessBar from '../components/ProfileCompletenessBar';
@@ -10,7 +10,7 @@ import MutualFriendsPanel from '../components/MutualFriendsPanel';
 import CompatibilityScore from '../components/CompatibilityScore';
 import { useAuth } from '../context/AuthContext';
 import { getProfile, getUserProfileById, updateProfile, getFollowers, getFollowing, uploadProfilePic, removeProfilePicture, followUser, unfollowUser } from '../api/users';
-import { getPostsByUser } from '../api/posts';
+import { getPostsByUser, getSavedPosts } from '../api/posts';
 import { useToast } from '../components/Toast';
 import FollowersModal from '../components/FollowersModal';
 
@@ -35,6 +35,8 @@ export default function ProfilePage() {
     const [followersModal, setFollowersModal] = useState({ open: false, title: '', users: [] });
     const [activeTab, setActiveTab] = useState('posts');
     const [posts, setPosts] = useState([]);
+    const [savedPosts, setSavedPosts] = useState([]);
+    const [savedLoading, setSavedLoading] = useState(false);
     const [uploadingPic, setUploadingPic] = useState(false);
     const [followingLoading, setFollowingLoading] = useState(false);
     const fileInputRef = useRef(null);
@@ -81,6 +83,16 @@ export default function ProfilePage() {
 
         fetchProfileData();
     }, [userId, navigate]);
+
+    useEffect(() => {
+        if (activeTab === 'saved' && isOwnProfile) {
+            setSavedLoading(true);
+            getSavedPosts(0, 50)
+                .then(res => setSavedPosts(res.data?.content || []))
+                .catch(() => setSavedPosts([]))
+                .finally(() => setSavedLoading(false));
+        }
+    }, [activeTab, isOwnProfile]);
 
     const handleSave = async () => {
         setSaving(true);
@@ -250,12 +262,10 @@ export default function ProfilePage() {
             <div className="flex flex-col sm:flex-row gap-6 sm:gap-12 items-center sm:items-start px-4 py-6 sm:py-10">
                 {/* Profile Picture */}
                 <div className="relative flex-shrink-0">
-                    <div className="avatar-story">
-                        <div className="avatar w-[100px] h-[100px] sm:w-[150px] sm:h-[150px] text-[32px] sm:text-[42px]">
-                            {profile?.profilePicUrl ? (
-                                <img src={profile.profilePicUrl} alt={displayName} className="w-full h-full object-cover rounded-full" />
-                            ) : initial}
-                        </div>
+                    <div className="avatar w-[100px] h-[100px] sm:w-[150px] sm:h-[150px] text-[32px] sm:text-[42px] overflow-hidden rounded-full border-2 border-[var(--border-color)]">
+                        {profile?.profilePicUrl ? (
+                            <img src={profile.profilePicUrl} alt={displayName} className="w-full h-full object-cover rounded-full" />
+                        ) : initial}
                     </div>
                     {isOwnProfile && (
                         <div className="absolute bottom-1 right-1 flex gap-1">
@@ -406,6 +416,9 @@ export default function ProfilePage() {
                     <div className="flex items-center justify-center gap-6 py-2">
                         {[
                             { id: 'posts',      icon: Grid3X3,   label: 'Posts'      },
+                            ...(isOwnProfile
+                                ? [{ id: 'saved',      icon: Bookmark,  label: 'Saved'      }]
+                                : []),
                             { id: 'network',    icon: Network,   label: 'Network'    },
                             ...(!isOwnProfile && profile?.isFollowing
                                 ? [
@@ -440,6 +453,44 @@ export default function ProfilePage() {
                             <FriendStats friendId={profile.userId} />
                         ) : activeTab === 'milestones' ? (
                             <FriendshipMilestones friendId={profile.userId} />
+                        ) : activeTab === 'saved' ? (
+                            savedLoading ? (
+                                <div className="flex justify-center items-center py-16">
+                                    <Loader className="animate-spin text-[var(--accent)]" size={28} />
+                                </div>
+                            ) : savedPosts.length === 0 ? (
+                                <div className="text-center py-16 px-4">
+                                    <div className="w-16 h-16 rounded-full border border-[var(--border-color)] flex items-center justify-center mx-auto mb-3">
+                                        <Bookmark size={30} strokeWidth={1} className="text-[var(--text-muted)]" />
+                                    </div>
+                                    <p className="text-xl font-medium text-[var(--text-primary)] mb-1">No Saved Posts</p>
+                                    <p className="text-[13px] text-[var(--text-muted)] max-w-xs mx-auto">Only you can see what you've saved.</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-3 gap-[3px] sm:gap-6 px-[1px] auto-rows-fr">
+                                    {savedPosts.map((post) => (
+                                        <motion.div
+                                            key={post.id}
+                                            initial={{ opacity: 0 }}
+                                            animate={{ opacity: 1 }}
+                                            whileHover={{ opacity: 0.9 }}
+                                            className="relative aspect-square bg-[var(--bg-elevated)] cursor-pointer group overflow-hidden sm:rounded-lg border border-[var(--border-color)]/30"
+                                        >
+                                            {post.imageUrl ? (
+                                                <img src={post.imageUrl} alt="" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center p-3 sm:p-5">
+                                                    <p className="text-[10px] sm:text-[13px] text-[var(--text-secondary)] text-center line-clamp-6 leading-relaxed italic">{post.content}</p>
+                                                </div>
+                                            )}
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-center justify-center gap-4 sm:gap-8">
+                                                <span className="text-white text-[13px] sm:text-[16px] font-bold flex items-center gap-1.5">❤️ {post.likeCount || 0}</span>
+                                                <span className="text-white text-[13px] sm:text-[16px] font-bold flex items-center gap-1.5">💬 {post.commentCount || 0}</span>
+                                            </div>
+                                        </motion.div>
+                                    ))}
+                                </div>
+                            )
                         ) : posts.length === 0 ? (
                             <div className="text-center py-16 px-4">
                                 <div className="w-16 h-16 rounded-full border border-[var(--border-color)] flex items-center justify-center mx-auto mb-3">

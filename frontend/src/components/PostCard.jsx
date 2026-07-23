@@ -2,16 +2,20 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { Heart, MessageCircle, Trash2, MoreHorizontal, Bookmark, Send } from 'lucide-react';
-import { toggleLike, deletePost } from '../api/posts';
+import { toggleLike, toggleSavePost, deletePost } from '../api/posts';
 import { useToast } from './Toast';
 import CommentSection from './CommentSection';
 import EmojiReactionPicker from './EmojiReactionPicker';
 
 function timeAgo(dateStr) {
     if (!dateStr) return '';
-    const date = new Date(dateStr);
+    let str = String(dateStr).trim();
+    if (str.includes('T') && !str.endsWith('Z') && !str.includes('+') && !/-\d{2}:\d{2}$/.test(str)) {
+        str += 'Z';
+    }
+    const date = new Date(str);
     if (isNaN(date.getTime())) return '';
-    const diff = Date.now() - date.getTime();
+    const diff = Math.max(0, Date.now() - date.getTime());
     const secs = Math.floor(diff / 1000);
     if (secs < 60) return 'Just now';
     const mins = Math.floor(secs / 60);
@@ -20,12 +24,13 @@ function timeAgo(dateStr) {
     if (hours < 24) return `${hours}h`;
     const days = Math.floor(hours / 24);
     if (days < 7) return `${days}d`;
-    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 export default function PostCard({ post, currentEmail, currentUserId, onDelete, onLikeToggle }) {
     const toast = useToast();
     const [liked, setLiked] = useState(post.liked || post.isLiked);
+    const [saved, setSaved] = useState(post.saved || post.isSaved || false);
     const [likeCount, setLikeCount] = useState(post.likeCount || post.likesCount || 0);
     const [commentCount, setCommentCount] = useState(post.commentCount || post.commentsCount || 0);
     const [showComments, setShowComments] = useState(false);
@@ -35,11 +40,12 @@ export default function PostCard({ post, currentEmail, currentUserId, onDelete, 
     const [heartBurst, setHeartBurst] = useState(false);
     const lastTap = useRef(0);
 
-    // Synchronize local liked/likeCount with incoming post prop updates
+    // Synchronize local liked/likeCount/saved with incoming post prop updates
     useEffect(() => {
         setLiked(post.liked || post.isLiked);
+        setSaved(post.saved || post.isSaved || false);
         setLikeCount(post.likeCount || post.likesCount || 0);
-    }, [post.id, post.liked, post.isLiked, post.likeCount, post.likesCount]);
+    }, [post.id, post.liked, post.isLiked, post.saved, post.isSaved, post.likeCount, post.likesCount]);
 
     const initial = post.authorName?.charAt(0)?.toUpperCase() || '?';
     const profilePic = post.authorProfilePic || post.profilePicUrl;
@@ -63,6 +69,18 @@ export default function PostCard({ post, currentEmail, currentUserId, onDelete, 
             setLikeCount(likeCount);
             if (onLikeToggle) onLikeToggle(post.id, wasLiked, likeCount);
             toast.error('Failed to update like');
+        }
+    };
+
+    const handleSave = async () => {
+        const wasSaved = saved;
+        setSaved(!wasSaved);
+        try {
+            await toggleSavePost(post.id);
+            toast.success(wasSaved ? 'Post removed from saved' : 'Post saved');
+        } catch {
+            setSaved(wasSaved);
+            toast.error('Failed to update saved post');
         }
     };
 
@@ -125,12 +143,10 @@ export default function PostCard({ post, currentEmail, currentUserId, onDelete, 
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3">
                 <Link to={`/profile/${post.authorId || post.userId}`} className="flex items-center gap-3 group">
-                    <div className="avatar-story">
-                        <div className="avatar w-[34px] h-[34px] text-[11px] group-hover:scale-105 transition-transform">
-                            {profilePic ? (
-                                <img src={profilePic} alt={post.authorName} className="w-full h-full object-cover rounded-full" />
-                            ) : initial}
-                        </div>
+                    <div className="avatar w-[34px] h-[34px] text-[11px] group-hover:scale-105 transition-transform overflow-hidden rounded-full">
+                        {profilePic ? (
+                            <img src={profilePic} alt={post.authorName} className="w-full h-full object-cover rounded-full" />
+                        ) : initial}
                     </div>
                     <div>
                         <p className="text-[13px] font-semibold text-[var(--text-primary)] leading-tight group-hover:underline">{post.authorName}</p>
@@ -222,8 +238,12 @@ export default function PostCard({ post, currentEmail, currentUserId, onDelete, 
                     </button>
                     <EmojiReactionPicker targetType="POST" targetId={post.id} />
                 </div>
-                <button className="p-1 cursor-pointer">
-                    <Bookmark size={24} className="text-[var(--text-primary)] hover:text-[var(--text-muted)] transition-colors" />
+                <button onClick={handleSave} className="p-1 cursor-pointer">
+                    <Bookmark
+                        size={24}
+                        fill={saved ? 'currentColor' : 'none'}
+                        className={`transition-colors ${saved ? 'text-[var(--accent)]' : 'text-[var(--text-primary)] hover:text-[var(--text-muted)]'}`}
+                    />
                 </button>
             </div>
 

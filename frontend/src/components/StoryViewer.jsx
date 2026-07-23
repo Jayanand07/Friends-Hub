@@ -109,13 +109,20 @@ export default function StoryViewer({ storyUsers, initialUserIndex, onClose }) {
     // Time ago for story
     const timeAgo = (dateStr) => {
         if (!dateStr) return '';
-        const date = new Date(dateStr);
+        let str = String(dateStr).trim();
+        if (str.includes('T') && !str.endsWith('Z') && !str.includes('+') && !/-\d{2}:\d{2}$/.test(str)) {
+            str += 'Z';
+        }
+        const date = new Date(str);
         if (isNaN(date.getTime())) return '';
-        const diff = Date.now() - date.getTime();
+        const diff = Math.max(0, Date.now() - date.getTime());
         const mins = Math.floor(diff / 60000);
         if (mins < 1) return 'Just now';
         if (mins < 60) return `${mins}m`;
-        return `${Math.floor(mins / 60)}h`;
+        const hours = Math.floor(mins / 60);
+        if (hours < 24) return `${hours}h`;
+        const days = Math.floor(hours / 24);
+        return `${days}d`;
     };
 
     return (

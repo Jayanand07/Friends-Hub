@@ -12,6 +12,11 @@ export const deletePost = (postId) => api.delete(`/posts/${postId}`);
 
 export const toggleLike = (postId) => api.post(`/posts/${postId}/like`);
 
+export const toggleSavePost = (postId) => api.post(`/posts/${postId}/save`);
+
+export const getSavedPosts = (page = 0, size = 10) =>
+    api.get(`/posts/saved?page=${page}&size=${size}&sort=createdAt,desc`);
+
 export const addComment = (postId, data) => api.post(`/posts/${postId}/comment`, data);
 
 export const getComments = (postId) => api.get(`/posts/${postId}/comments`);
