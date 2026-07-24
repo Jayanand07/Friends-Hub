@@ -123,6 +123,7 @@ public class AuthService {
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
+        String email = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : "";
 
         String attemptsKey = "login:attempts:" + email;
         try {
