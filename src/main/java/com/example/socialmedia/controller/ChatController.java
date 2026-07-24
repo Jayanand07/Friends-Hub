@@ -21,12 +21,15 @@ public class ChatController {
     private final ChatService chatService;
     private final SimpMessagingTemplate messagingTemplate;
     private final WebSocketEventListener eventListener;
+    private final com.example.socialmedia.repository.UserRepository userRepo;
 
     public ChatController(ChatService chatService, SimpMessagingTemplate messagingTemplate,
-            WebSocketEventListener eventListener) {
+            WebSocketEventListener eventListener,
+            com.example.socialmedia.repository.UserRepository userRepo) {
         this.chatService = chatService;
         this.messagingTemplate = messagingTemplate;
         this.eventListener = eventListener;
+        this.userRepo = userRepo;
     }
 
     // ===== WebSocket STOMP endpoints =====
@@ -58,9 +61,21 @@ public class ChatController {
 
     @MessageMapping("/chat.register")
     public void registerUser(@Payload Map<String, Long> payload,
-            org.springframework.messaging.simp.SimpMessageHeaderAccessor headerAccessor) {
+            org.springframework.messaging.simp.SimpMessageHeaderAccessor headerAccessor,
+            org.springframework.security.core.Authentication authentication) {
         Long userId = payload.get("userId");
         if (userId != null) {
+            // SECURITY: Verify the userId matches the authenticated user
+            // to prevent identity spoofing (user A registering as user B).
+            if (authentication == null || authentication.getName() == null) {
+                throw new RuntimeException("Authentication required to register");
+            }
+            com.example.socialmedia.entity.User authenticatedUser = userRepo
+                .findByEmail(authentication.getName())
+                .orElseThrow(() -> new RuntimeException("Authenticated user not found"));
+            if (!authenticatedUser.getId().equals(userId)) {
+                throw new RuntimeException("User ID mismatch: cannot register as another user");
+            }
             String sessionId = headerAccessor.getSessionId();
             eventListener.registerUserSession(sessionId, userId);
         }

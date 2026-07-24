@@ -63,7 +63,8 @@ public class EmailService {
 
         boolean sent = sendHtmlEmail(toEmail, subject, htmlBody);
         if (!sent) {
-            log.warn("VERIFICATION LINK FOR {}: {}", toEmail, verifyLink);
+            log.warn("Verification email FAILED to send to {}. Token was logged server-side for debugging only.", toEmail);
+            log.debug("Verification link (visible only at DEBUG level): {}", verifyLink);
         } else {
             log.info("Verification email successfully sent to {}", toEmail);
         }
@@ -82,7 +83,8 @@ public class EmailService {
 
         boolean sent = sendHtmlEmail(toEmail, subject, htmlBody);
         if (!sent) {
-            log.warn("PASSWORD RESET LINK FOR {}: {}", toEmail, resetLink);
+            log.warn("Password reset email FAILED to send to {}.", toEmail);
+            log.debug("Password reset link (DEBUG level only): {}", resetLink);
         } else {
             log.info("Password reset email successfully sent to {}", toEmail);
         }
@@ -97,13 +99,16 @@ public class EmailService {
         log.info("Preparing OTP email for {}", toEmail);
         try {
             String encodedEmail = java.net.URLEncoder.encode(toEmail, java.nio.charset.StandardCharsets.UTF_8);
-            String resetLink = resetPasswordUrl + "?email=" + encodedEmail + "&otp=" + otp;
-            String subject = "Your Password Reset OTP & Link - FriendsHub";
+            // SECURITY: OTP is NOT included in the URL — only in the email body.
+            // This prevents leakage via browser history, Referer headers, and proxy logs.
+            String resetLink = resetPasswordUrl + "?email=" + encodedEmail;
+            String subject = "Your Password Reset OTP - FriendsHub";
             String htmlBody = buildOtpAndResetLinkHtml(toEmail, otp, resetLink);
 
             boolean sent = sendHtmlEmail(toEmail, subject, htmlBody);
             if (!sent) {
-                log.warn("OTP FOR {}: {} | LINK: {}", toEmail, otp, resetLink);
+                log.warn("OTP email FAILED to send to {}. OTP stored in Redis/DB only.", toEmail);
+                log.debug("OTP (DEBUG level only) for {}: {}", toEmail, otp);
             } else {
                 log.info("OTP email successfully sent to {}", toEmail);
             }
@@ -155,7 +160,7 @@ public class EmailService {
             java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
                     .uri(java.net.URI.create("https://api.resend.com/emails"))
                     .header("Authorization", "Bearer " + resendApiKey.trim())
-                    .header("Content-Type", "application.json")
+                    .header("Content-Type", "application/json")
                     .POST(java.net.http.HttpRequest.BodyPublishers.ofString(jsonPayload, java.nio.charset.StandardCharsets.UTF_8))
                     .build();
 

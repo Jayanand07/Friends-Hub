@@ -27,7 +27,11 @@ public class SupabaseStorageService {
     @Value("${supabase.bucket}")
     private String bucketName;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
+
+    public SupabaseStorageService(RestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+    }
 
     private static final Set<String> ALLOWED_TYPES = Set.of(
             "image/jpeg", "image/png", "image/gif", "image/webp");

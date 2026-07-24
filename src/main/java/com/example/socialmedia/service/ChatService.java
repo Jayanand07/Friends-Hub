@@ -22,15 +22,18 @@ public class ChatService {
     private final ChatMessageRepository chatRepo;
     private final UserRepository userRepo;
     private final NotificationService notificationService;
+    private final com.example.socialmedia.repository.BlockRepository blockRepo;
 
     // Tracks online user IDs
     private final Set<Long> onlineUsers = ConcurrentHashMap.newKeySet();
 
     public ChatService(ChatMessageRepository chatRepo, UserRepository userRepo,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            com.example.socialmedia.repository.BlockRepository blockRepo) {
         this.chatRepo = chatRepo;
         this.userRepo = userRepo;
         this.notificationService = notificationService;
+        this.blockRepo = blockRepo;
     }
 
     // ===== Online status =====
@@ -56,6 +59,12 @@ public class ChatService {
                 .orElseThrow(() -> new RuntimeException("Sender not found"));
         User receiver = userRepo.findById(receiverId)
                 .orElseThrow(() -> new RuntimeException("Receiver not found"));
+
+        // SECURITY: Block check — if either user has blocked the other, reject the message
+        if (blockRepo.existsByBlockerAndBlocked(receiver, sender) ||
+                blockRepo.existsByBlockerAndBlocked(sender, receiver)) {
+            throw new RuntimeException("Cannot send message: user is blocked");
+        }
 
         ChatMessage message = new ChatMessage(sender, receiver, content);
         message.setIv(iv);

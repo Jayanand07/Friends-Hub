@@ -153,7 +153,6 @@ public class PostService {
 
         @Transactional
         @Caching(evict = {
-                @CacheEvict(value = "feed", allEntries = true),
                 @CacheEvict(value = "posts", allEntries = true)
         })
         public String toggleLike(Long postId, String email) {
@@ -203,7 +202,6 @@ public class PostService {
 
         @Transactional
         @Caching(evict = {
-                @CacheEvict(value = "feed", allEntries = true),
                 @CacheEvict(value = "posts", allEntries = true)
         })
         public String toggleSavePost(Long postId, String email) {
@@ -233,7 +231,6 @@ public class PostService {
 
         @Transactional
         @Caching(evict = {
-                @CacheEvict(value = "feed", allEntries = true),
                 @CacheEvict(value = "posts", allEntries = true)
         })
         public void addComment(Long postId, CommentRequest request, String email) {
@@ -352,11 +349,15 @@ public class PostService {
 
                 // 1 Batch query for like counts
                 Map<Long, Long> likeCounts = likeRepository.countLikesByPostIdIn(postIds).stream()
-                                .collect(Collectors.toMap(arr -> (Long) arr[0], arr -> (Long) arr[1]));
+                                .collect(Collectors.toMap(
+                                    arr -> ((Number) arr[0]).longValue(),
+                                    arr -> ((Number) arr[1]).longValue()));
 
                 // 1 Batch query for comment counts
                 Map<Long, Long> commentCounts = commentRepository.countCommentsByPostIdIn(postIds).stream()
-                                .collect(Collectors.toMap(arr -> (Long) arr[0], arr -> (Long) arr[1]));
+                                .collect(Collectors.toMap(
+                                    arr -> ((Number) arr[0]).longValue(),
+                                    arr -> ((Number) arr[1]).longValue()));
 
                 Map<Long, PostResponse> mappedMap = new HashMap<>();
                 for (Post post : posts) {

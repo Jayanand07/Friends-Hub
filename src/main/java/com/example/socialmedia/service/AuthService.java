@@ -1,9 +1,9 @@
 package com.example.socialmedia.service;
 
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
+import java.security.*;
+import java.security.spec.RSAPublicKeySpec;
+import java.util.Base64;
 
 import com.example.socialmedia.dto.AuthResponse;
 import com.example.socialmedia.dto.LoginRequest;
@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import io.jsonwebtoken.Jwts;
 import org.springframework.data.redis.core.RedisTemplate;
 import java.util.Optional;
 import com.example.socialmedia.entity.Role;
@@ -270,47 +271,30 @@ public class AuthService {
 
     @Transactional
     public AuthResponse googleLogin(OAuthRequest request) {
-        // SECURITY: Validate that idToken is provided
         String idToken = request.getIdToken();
         if (idToken == null || idToken.isBlank()) {
             throw new RuntimeException("Google ID token is required for OAuth login");
         }
 
-        // Verify the Google ID token and extract the verified email
-        String verifiedEmail;
-        String verifiedName;
+        // Verify the Google ID token signature using Google's public keys (JWKS)
+        io.jsonwebtoken.Claims claims;
         try {
-            // Decode the JWT payload to extract claims (the signature was already
-            // verified by Google on the client; here we validate structure & expiry)
-            String[] parts = idToken.split("\\.");
-            if (parts.length != 3) {
-                throw new RuntimeException("Malformed Google ID token");
-            }
-            String payload = new String(java.util.Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
-            // Simple JSON field extraction without adding a dependency
-            verifiedEmail = extractJsonField(payload, "email");
-            verifiedName = extractJsonField(payload, "name");
-            String emailVerified = extractJsonField(payload, "email_verified");
-
-            if (verifiedEmail == null || verifiedEmail.isBlank()) {
-                throw new RuntimeException("Google ID token does not contain an email");
-            }
-            if (!"true".equals(emailVerified)) {
-                throw new RuntimeException("Google email is not verified");
-            }
-
-            // Check token expiry
-            String expStr = extractJsonField(payload, "exp");
-            if (expStr != null) {
-                long exp = Long.parseLong(expStr);
-                if (System.currentTimeMillis() / 1000 > exp) {
-                    throw new RuntimeException("Google ID token has expired");
-                }
-            }
-        } catch (RuntimeException e) {
-            throw e;
+            claims = GoogleTokenVerifier.verify(idToken);
         } catch (Exception e) {
+            log.error("Google ID token verification failed: {}", e.getMessage());
             throw new RuntimeException("Failed to verify Google ID token: " + e.getMessage());
+        }
+
+        // Extract verified claims
+        String verifiedEmail = claims.get("email", String.class);
+        String verifiedName = claims.get("name", String.class);
+        String emailVerified = claims.get("email_verified", String.class);
+
+        if (verifiedEmail == null || verifiedEmail.isBlank()) {
+            throw new RuntimeException("Google ID token does not contain an email");
+        }
+        if (!"true".equals(emailVerified)) {
+            throw new RuntimeException("Google email is not verified");
         }
 
         // Use VERIFIED email from token, NOT from request body
@@ -331,7 +315,6 @@ public class AuthService {
             user.setRole(Role.ROLE_USER);
             user.setAuthProvider(AuthProvider.GOOGLE);
 
-            // Slugify name
             String slugified = verifiedName.toLowerCase().replaceAll("[^a-z0-9]", "");
             user.setUsername(slugified);
 
@@ -354,29 +337,144 @@ public class AuthService {
     }
 
     /**
-     * Extract a string field value from a JSON string without a JSON library.
-     * Handles both quoted string values and unquoted boolean/numeric values.
+     * Verifies Google ID tokens using JWKS (JSON Web Key Set).
+     * Fetches Google's public keys, caches them, and cryptographically
+     * verifies the token signature — NOT just decoding the payload.
      */
-    private String extractJsonField(String json, String field) {
-        String search = "\"" + field + "\"";
-        int idx = json.indexOf(search);
-        if (idx < 0) return null;
-        int colonIdx = json.indexOf(':', idx + search.length());
-        if (colonIdx < 0) return null;
-        int start = colonIdx + 1;
-        // Skip whitespace
-        while (start < json.length() && json.charAt(start) == ' ') start++;
-        if (start >= json.length()) return null;
+    private static class GoogleTokenVerifier {
+        private static final String GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs";
+        private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(GoogleTokenVerifier.class);
 
-        if (json.charAt(start) == '"') {
-            // Quoted string value
-            int end = json.indexOf('"', start + 1);
-            return end > start ? json.substring(start + 1, end) : null;
-        } else {
-            // Unquoted value (boolean, number)
-            int end = start;
-            while (end < json.length() && json.charAt(end) != ',' && json.charAt(end) != '}') end++;
-            return json.substring(start, end).trim();
+        // Cache for Google's public keys: kid -> PublicKey
+        private static volatile java.util.Map<String, PublicKey> cachedKeys = null;
+        private static volatile long keysFetchedAt = 0;
+        private static final long CACHE_TTL_MS = 86_400_000; // 24 hours
+
+        static io.jsonwebtoken.Claims verify(String idToken) throws Exception {
+            // Parse the JWT header to extract the kid (key ID)
+            String[] parts = idToken.split("\\.");
+            if (parts.length != 3) {
+                throw new RuntimeException("Malformed Google ID token");
+            }
+
+            String headerJson = new String(Base64.getUrlDecoder().decode(parts[0]), StandardCharsets.UTF_8);
+            String kid = extractKid(headerJson);
+            if (kid == null) {
+                // Some Google tokens don't have a kid — try all keys
+                kid = "";
+            }
+
+            // Get Google's public keys (from cache or fetch)
+            java.util.Map<String, PublicKey> keys = getPublicKeys();
+            PublicKey publicKey = kid.isEmpty() ? keys.values().stream().findFirst().orElse(null) : keys.get(kid);
+            if (publicKey == null) {
+                // Key not found in cache — force refresh and try again
+                cachedKeys = null;
+                keys = getPublicKeys();
+                publicKey = kid.isEmpty() ? keys.values().stream().findFirst().orElse(null) : keys.get(kid);
+                if (publicKey == null) {
+                    throw new RuntimeException("No matching Google public key found for kid: " + kid);
+                }
+            }
+
+            // Verify the JWT signature and parse claims using jjwt
+            return Jwts.parserBuilder()
+                    .setSigningKey(publicKey)
+                    .build()
+                    .parseClaimsJws(idToken)
+                    .getBody();
+        }
+
+        private static String extractKid(String headerJson) {
+            // Simple JSON parsing without a library
+            String search = "\"kid\":\"";
+            int idx = headerJson.indexOf(search);
+            if (idx < 0) return null;
+            int start = idx + search.length();
+            int end = headerJson.indexOf('"', start);
+            return end > start ? headerJson.substring(start, end) : null;
+        }
+
+        private static java.util.Map<String, PublicKey> getPublicKeys() throws Exception {
+            if (cachedKeys != null && (System.currentTimeMillis() - keysFetchedAt) < CACHE_TTL_MS) {
+                return cachedKeys;
+            }
+
+            synchronized (GoogleTokenVerifier.class) {
+                if (cachedKeys != null && (System.currentTimeMillis() - keysFetchedAt) < CACHE_TTL_MS) {
+                    return cachedKeys;
+                }
+
+                // Fetch JWKS from Google
+                java.net.URL url = new java.net.URL(GOOGLE_JWKS_URL);
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(10000);
+                conn.setRequestMethod("GET");
+
+                String response;
+                try (java.io.BufferedReader br = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = br.readLine()) != null) {
+                        sb.append(line);
+                    }
+                    response = sb.toString();
+                } finally {
+                    conn.disconnect();
+                }
+
+                cachedKeys = parseJwks(response);
+                keysFetchedAt = System.currentTimeMillis();
+                log.info("Fetched {} Google public keys", cachedKeys.size());
+                return cachedKeys;
+            }
+        }
+
+        private static java.util.Map<String, PublicKey> parseJwks(String json) throws Exception {
+            java.util.Map<String, PublicKey> keys = new java.util.HashMap<>();
+
+            // Very basic JWKS parser — extract each key object between { }
+            // Looking for: "kid":"...","n":"...","e":"..."
+            int pos = 0;
+            while (true) {
+                int startIdx = json.indexOf('{', pos);
+                if (startIdx < 0) break;
+                int endIdx = json.indexOf('}', startIdx);
+                if (endIdx < 0) break;
+                String keyObj = json.substring(startIdx, endIdx + 1);
+                pos = endIdx + 1;
+
+                String kid = extractJwksField(keyObj, "kid");
+                String n = extractJwksField(keyObj, "n");
+                String e = extractJwksField(keyObj, "e");
+
+                if (kid != null && n != null && e != null) {
+                    keys.put(kid, buildPublicKey(n, e));
+                }
+            }
+
+            return keys;
+        }
+
+        private static String extractJwksField(String json, String field) {
+            String search = "\"" + field + "\":\"";
+            int idx = json.indexOf(search);
+            if (idx < 0) return null;
+            int start = idx + search.length();
+            int end = json.indexOf('"', start);
+            return end > start ? json.substring(start, end) : null;
+        }
+
+        private static PublicKey buildPublicKey(String modulusB64, String exponentB64) throws Exception {
+            byte[] modulusBytes = Base64.getUrlDecoder().decode(modulusB64);
+            byte[] exponentBytes = Base64.getUrlDecoder().decode(exponentB64);
+            java.math.BigInteger modulus = new java.math.BigInteger(1, modulusBytes);
+            java.math.BigInteger exponent = new java.math.BigInteger(1, exponentBytes);
+            RSAPublicKeySpec spec = new RSAPublicKeySpec(modulus, exponent);
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            return keyFactory.generatePublic(spec);
         }
     }
 

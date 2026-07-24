@@ -6,7 +6,6 @@ export const updateProfile = (data) => api.put('/users/profile', data);
 export const removeProfilePicture = () => api.delete('/users/profile/picture');
 export const updateProfileSettings = (data) => api.put('/users/profile/settings', data);
 export const followUser = (userId) => api.post(`/users/${userId}/follow`);
-export const unfollowUser = (userId) => api.delete(`/users/${userId}/follow`);
 export const getFollowers = (userId) => api.get(`/users/${userId}/followers`);
 export const getFollowing = (userId) => api.get(`/users/${userId}/following`);
 

@@ -168,9 +168,19 @@ public class StoryService {
         UserInfo info = userInfoRepository.findByUser(user).orElse(null);
         String profilePic = info != null ? info.getProfilePicUrl() : null;
 
+        // Batch query: get all view counts for these stories in 1 query (fixes N+1)
+        List<Long> storyIds = stories.stream().map(Story::getId).collect(Collectors.toList());
+        Map<Long, Long> viewCountMap = storyViewRepository.countViewsByStoryIds(storyIds).stream()
+                .collect(Collectors.toMap(
+                    arr -> ((Number) arr[0]).longValue(),
+                    arr -> ((Number) arr[1]).longValue()));
+        // Batch query: get all viewed-by-current-user statuses in 1 query (fixes N+1)
+        Set<Long> viewedStoryIds = new java.util.HashSet<>(
+                storyViewRepository.findViewedStoryIdsByStoryIdsAndViewer(storyIds, currentUser));
+
         List<StoryResponse> storyResponses = stories.stream().map(s -> {
-            int viewerCount = storyViewRepository.findByStoryId(s.getId()).size();
-            boolean viewed = storyViewRepository.existsByStoryAndViewer(s, currentUser);
+            int viewerCount = viewCountMap.getOrDefault(s.getId(), 0L).intValue();
+            boolean viewed = viewedStoryIds.contains(s.getId());
             return new StoryResponse(s.getId(), s.getImageUrl(),
                     s.getCreatedAt(), s.getExpiresAt(), viewerCount, viewed);
         }).collect(Collectors.toList());

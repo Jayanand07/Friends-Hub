@@ -44,9 +44,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
         jwt = authHeader.substring(7);
         
-        // Reject blacklisted/revoked tokens
+        // Reject blacklisted/revoked tokens immediately with 401
         if (tokenBlacklistService.isBlacklisted(jwt)) {
-            filterChain.doFilter(request, response);
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Token has been revoked\"}");
             return;
         }
 
