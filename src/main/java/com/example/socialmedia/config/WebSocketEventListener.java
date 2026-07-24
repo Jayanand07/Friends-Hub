@@ -26,7 +26,8 @@ public class WebSocketEventListener {
 
     @EventListener
     public void handleWebSocketConnectListener(SessionConnectedEvent event) {
-        broadcastOnlineUsers();
+        // Online status is no longer broadcast to all clients for privacy.
+        // Clients can query individual user online status on demand.
     }
 
     @EventListener
@@ -35,17 +36,11 @@ public class WebSocketEventListener {
         Long userId = sessionUserMap.remove(sessionId);
         if (userId != null) {
             chatService.removeOnlineUser(userId);
-            broadcastOnlineUsers();
         }
     }
 
     public void registerUserSession(String sessionId, Long userId) {
         sessionUserMap.put(sessionId, userId);
         chatService.addOnlineUser(userId);
-        broadcastOnlineUsers();
-    }
-
-    private void broadcastOnlineUsers() {
-        messagingTemplate.convertAndSend("/topic/online-users", chatService.getOnlineUsers());
     }
 }

@@ -51,6 +51,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void configureClientInboundChannel(
             @org.springframework.lang.NonNull org.springframework.messaging.simp.config.ChannelRegistration registration) {
         registration.interceptors(stompInterceptor);
+        // TODO: Add per-WebSocket-user rate limiting here via an additional
+        // ChannelInterceptor that tracks message frequency per user session
+        // and disconnects clients exceeding the threshold (e.g., > 100 msgs/min).
     }
 
     @Override

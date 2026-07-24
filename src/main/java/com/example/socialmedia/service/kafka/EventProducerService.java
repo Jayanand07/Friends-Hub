@@ -3,6 +3,7 @@ package com.example.socialmedia.service.kafka;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.example.socialmedia.dto.kafka.ActivityEvent;
 import com.example.socialmedia.dto.kafka.EmailEvent;
 import com.example.socialmedia.dto.kafka.NotificationEvent;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -10,7 +11,6 @@ import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 @Service
@@ -60,12 +60,7 @@ public class EventProducerService {
     }
 
     public void sendActivityEvent(Long userId, String action, Long resourceId) {
-        var event = Map.of(
-                "userId", userId,
-                "action", action,       // "POST_VIEW", "STORY_VIEW", "LOGIN"
-                "resourceId", resourceId,
-                "timestamp", Instant.now()
-        );
+        ActivityEvent event = new ActivityEvent(userId, action, resourceId, Instant.now());
         kafkaTemplate.send("user-activity", String.valueOf(userId), event);
     }
 }

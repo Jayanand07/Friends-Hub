@@ -91,13 +91,15 @@ public class UserController {
     }
 
     @GetMapping("/{userId}/followers")
-    public ResponseEntity<List<FollowUserResponse>> getFollowers(@PathVariable Long userId) {
-        return ResponseEntity.ok(userService.getFollowers(userId));
+    public ResponseEntity<List<FollowUserResponse>> getFollowers(@PathVariable Long userId,
+            Authentication authentication) {
+        return ResponseEntity.ok(userService.getFollowers(userId, authentication.getName()));
     }
 
     @GetMapping("/{userId}/following")
-    public ResponseEntity<List<FollowUserResponse>> getFollowing(@PathVariable Long userId) {
-        return ResponseEntity.ok(userService.getFollowing(userId));
+    public ResponseEntity<List<FollowUserResponse>> getFollowing(@PathVariable Long userId,
+            Authentication authentication) {
+        return ResponseEntity.ok(userService.getFollowing(userId, authentication.getName()));
     }
 
     // ─── Privacy ──────────────────────────────────────────────

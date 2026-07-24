@@ -9,7 +9,7 @@ import { useToast } from '../components/Toast';
 export default function ResetPasswordPage() {
     const [searchParams] = useSearchParams();
     const [email, setEmail] = useState(searchParams.get('email') || '');
-    const [otp, setOtp] = useState(searchParams.get('otp') || searchParams.get('token') || '');
+    const [otp, setOtp] = useState('');
     const navigate = useNavigate();
     const toast = useToast();
 
@@ -21,9 +21,8 @@ export default function ResetPasswordPage() {
 
     useEffect(() => {
         const eParam = searchParams.get('email');
-        const oParam = searchParams.get('otp') || searchParams.get('token');
         if (eParam) setEmail(eParam);
-        if (oParam) setOtp(oParam);
+        // SECURITY: OTP must only come from user input, never from URL params
     }, [searchParams]);
 
 

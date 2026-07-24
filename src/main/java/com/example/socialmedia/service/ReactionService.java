@@ -1,6 +1,8 @@
 package com.example.socialmedia.service;
 
 import com.example.socialmedia.entity.*;
+import com.example.socialmedia.repository.BlockRepository;
+import com.example.socialmedia.repository.PostRepository;
 import com.example.socialmedia.repository.ReactionRepository;
 import com.example.socialmedia.repository.UserRepository;
 
@@ -17,10 +19,15 @@ public class ReactionService {
 
     private final ReactionRepository reactionRepository;
     private final UserRepository userRepository;
+    private final BlockRepository blockRepository;
+    private final PostRepository postRepository;
 
-    public ReactionService(ReactionRepository reactionRepository, UserRepository userRepository) {
+    public ReactionService(ReactionRepository reactionRepository, UserRepository userRepository,
+            BlockRepository blockRepository, PostRepository postRepository) {
         this.reactionRepository = reactionRepository;
         this.userRepository = userRepository;
+        this.blockRepository = blockRepository;
+        this.postRepository = postRepository;
     }
 
     @Transactional
@@ -30,6 +37,25 @@ public class ReactionService {
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
         ReactionTargetType type = ReactionTargetType.valueOf(targetType.toUpperCase());
+
+        // SECURITY: Block check — determine the target content owner and verify neither
+        // user has blocked the other
+        User targetUser = null;
+        if (type == ReactionTargetType.POST) {
+            Post post = postRepository.findById(targetId)
+                    .orElseThrow(() -> new RuntimeException("Target post not found"));
+            targetUser = post.getUser();
+        } else if (type == ReactionTargetType.COMMENT) {
+            // For future comment reaction support, look up the comment's author
+            // For now, skip block check for non-post targets
+        }
+
+        if (targetUser != null) {
+            if (blockRepository.existsByBlockerAndBlocked(targetUser, user) ||
+                    blockRepository.existsByBlockerAndBlocked(user, targetUser)) {
+                throw new RuntimeException("Action not allowed");
+            }
+        }
 
         // Remove existing reaction by same user on same target
         reactionRepository.findByUserAndTargetTypeAndTargetId(user, type, targetId)

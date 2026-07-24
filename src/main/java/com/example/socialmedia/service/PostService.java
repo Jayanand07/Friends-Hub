@@ -103,7 +103,7 @@ public class PostService {
         }
 
         @Transactional(readOnly = true)
-        @Cacheable(value = "feed", key = "'user:' + #currentUserEmail")
+        @Cacheable(value = "feed", key = "'user:' + #currentUserEmail + ':' + #pageable.pageNumber")
         public Page<PostResponse> getHomeFeed(String currentUserEmail, Pageable pageable) {
                 User user = userRepository.findByEmail(currentUserEmail)
                                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -309,7 +309,18 @@ public class PostService {
         }
 
         @Transactional(readOnly = true)
-        public Page<CommentResponse> getCommentsByPost(Long postId, Pageable pageable) {
+        public Page<CommentResponse> getCommentsByPost(Long postId, Pageable pageable, String viewerEmail) {
+                // SECURITY: Block check — prevent blocked users from viewing comments
+                Post post = postRepository.findById(postId)
+                                .orElseThrow(() -> new RuntimeException("Post not found"));
+                User viewer = userRepository.findByEmail(viewerEmail)
+                                .orElseThrow(() -> new RuntimeException("User not found"));
+
+                if (blockRepository.existsByBlockerAndBlocked(post.getUser(), viewer) ||
+                        blockRepository.existsByBlockerAndBlocked(viewer, post.getUser())) {
+                        throw new RuntimeException("Action not allowed");
+                }
+
                 return commentRepository.findByPostId(postId, pageable)
                                 .map(comment -> {
                                         String name = getDisplayName(comment.getUser());

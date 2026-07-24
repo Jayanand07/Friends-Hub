@@ -7,6 +7,7 @@ import com.example.socialmedia.entity.ChatGroup;
 import com.example.socialmedia.entity.ChatGroupMessage;
 import com.example.socialmedia.entity.User;
 import com.example.socialmedia.entity.UserInfo;
+import com.example.socialmedia.repository.BlockRepository;
 import com.example.socialmedia.repository.ChatGroupRepository;
 import com.example.socialmedia.repository.ChatGroupMessageRepository;
 import com.example.socialmedia.repository.UserRepository;
@@ -23,12 +24,14 @@ public class ChatGroupService {
     private final ChatGroupRepository groupRepo;
     private final ChatGroupMessageRepository messageRepo;
     private final UserRepository userRepo;
+    private final BlockRepository blockRepo;
 
     public ChatGroupService(ChatGroupRepository groupRepo, ChatGroupMessageRepository messageRepo,
-            UserRepository userRepo) {
+            UserRepository userRepo, BlockRepository blockRepo) {
         this.groupRepo = groupRepo;
         this.messageRepo = messageRepo;
         this.userRepo = userRepo;
+        this.blockRepo = blockRepo;
     }
 
     @Transactional
@@ -46,6 +49,18 @@ public class ChatGroupService {
             if (memberIds.size() >= 50) {
                 throw new RuntimeException("Group cannot have more than 50 members");
             }
+
+            // SECURITY: Block check — reject members who have blocked the creator or been blocked by the creator
+            for (Long memberId : memberIds) {
+                User member = userRepo.findById(memberId).orElse(null);
+                if (member != null) {
+                    if (blockRepo.existsByBlockerAndBlocked(creator, member) ||
+                            blockRepo.existsByBlockerAndBlocked(member, creator)) {
+                        throw new RuntimeException("Cannot add user " + memberId + " to group");
+                    }
+                }
+            }
+
             List<User> members = userRepo.findAllById(memberIds);
             group.getMembers().addAll(members);
         }
@@ -242,12 +257,10 @@ public class ChatGroupService {
         UserInfo info = user.getUserInfo();
         return UserProfileResponse.builder()
                 .userId(user.getId())
-                .email(user.getEmail())
                 .firstName(info != null ? info.getFirstName() : "")
                 .lastName(info != null ? info.getLastName() : "")
                 .profilePicUrl(info != null ? info.getProfilePicUrl() : null)
                 .bio(info != null ? info.getBio() : "")
-                .role(user.getRole())
                 .build();
     }
 }

@@ -6,7 +6,10 @@ import org.hibernate.annotations.CreationTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "chat_group_messages")
+@Table(name = "chat_group_messages", indexes = {
+        @Index(name = "idx_cgm_group", columnList = "group_id"),
+        @Index(name = "idx_cgm_created_at", columnList = "createdAt")
+})
 public class ChatGroupMessage {
 
     @Id

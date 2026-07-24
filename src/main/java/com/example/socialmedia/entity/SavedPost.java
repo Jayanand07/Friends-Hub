@@ -8,6 +8,9 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "saved_posts", uniqueConstraints = {
         @UniqueConstraint(columnNames = { "user_id", "post_id" })
+}, indexes = {
+        @Index(name = "idx_sp_user", columnList = "user_id"),
+        @Index(name = "idx_sp_post", columnList = "post_id")
 })
 public class SavedPost {
 

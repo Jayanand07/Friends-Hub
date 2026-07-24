@@ -1,6 +1,8 @@
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
@@ -12,6 +14,28 @@ const server = http.createServer(app);
 
 // Connect to MongoDB Atlas / Local MongoDB
 connectDB();
+
+// SECURITY: Apply Helmet for secure HTTP headers (X-Content-Type-Options, HSTS, CSP, etc.)
+app.use(helmet());
+
+// SECURITY: Global rate limit — max 200 requests per minute per IP
+const globalLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: 'Too many requests, please try again later' }
+});
+app.use(globalLimiter);
+
+// SECURITY: Strict rate limit on auth-sensitive endpoints
+const authLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: 'Too many authentication attempts' }
+});
 
 // SECURITY: Restrict CORS to known frontend origin only
 const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',').map(s => s.trim());
@@ -26,10 +50,14 @@ app.use(cors({
     },
     credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '16kb' }));
 
 // JWT Secret Key (same as Spring Boot backend)
-const JWT_SECRET = process.env.JWT_SECRET || 'secret_key_change_me_in_production_environment_12345';
+if (!process.env.JWT_SECRET) {
+    console.error('FATAL: JWT_SECRET environment variable is required');
+    process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // SECURITY: Full cryptographic JWT signature verification middleware
 function authMiddleware(req, res, next) {
@@ -40,7 +68,7 @@ function authMiddleware(req, res, next) {
     try {
         const token = authHeader.substring(7);
         // Cryptographically verify signature and check expiry using JWT_SECRET
-        const decoded = jwt.verify(token, JWT_SECRET);
+        const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
 
         req.user = {
             email: decoded.sub,

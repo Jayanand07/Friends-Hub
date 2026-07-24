@@ -4,7 +4,10 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "admin_action_logs")
+@Table(name = "admin_action_logs", indexes = {
+        @Index(name = "idx_aal_admin", columnList = "admin_id"),
+        @Index(name = "idx_aal_created_at", columnList = "createdAt")
+})
 public class AdminActionLog {
 
     @Id

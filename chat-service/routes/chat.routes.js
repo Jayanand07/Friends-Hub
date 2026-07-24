@@ -39,7 +39,10 @@ router.get('/messages/:user1/:user2', async (req, res) => {
 // POST /api/chat/messages - Send a new chat message
 router.post('/messages', async (req, res) => {
     try {
-        const { senderId, senderName, receiverId, message } = req.body;
+        // SECURITY: Override senderId/senderName from the authenticated JWT — never trust the client
+        const senderId = req.user.userId ? req.user.userId.toString() : null;
+        const senderName = req.user.email ? req.user.email.split('@')[0] : 'User';
+        const { receiverId, message } = req.body;
         if (!senderId || !receiverId || !message) {
             return res.status(400).json({ success: false, error: 'Missing required fields' });
         }
@@ -57,10 +60,13 @@ router.post('/messages', async (req, res) => {
 
         res.status(201).json({ success: true, source: 'MongoDB', data: newMsg });
     } catch (err) {
+        // SECURITY: Fallback also uses authenticated user, not request body
+        const fallbackSenderId = req.user.userId ? req.user.userId.toString() : null;
+        const fallbackSenderName = req.user.email ? req.user.email.split('@')[0] : 'User';
         const fallbackMsg = {
             _id: Date.now().toString(),
-            senderId: req.body.senderId,
-            senderName: req.body.senderName || 'User',
+            senderId: fallbackSenderId,
+            senderName: fallbackSenderName,
             receiverId: req.body.receiverId,
             message: req.body.message,
             createdAt: new Date()

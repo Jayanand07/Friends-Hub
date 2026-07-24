@@ -4,6 +4,7 @@ import com.example.socialmedia.dto.CompatibilityResponse;
 import com.example.socialmedia.dto.CompatibilityResponse.CompatibilityBadge;
 import com.example.socialmedia.entity.User;
 import com.example.socialmedia.entity.UserInfo;
+import com.example.socialmedia.entity.Block;
 import com.example.socialmedia.repository.*;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
@@ -21,19 +22,22 @@ public class CompatibilityService {
     private final LikeRepository likeRepository;
     private final CommentRepository commentRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final BlockRepository blockRepository;
 
     public CompatibilityService(UserRepository userRepository,
                                 UserInfoRepository userInfoRepository,
                                 FollowRepository followRepository,
                                 LikeRepository likeRepository,
                                 CommentRepository commentRepository,
-                                ChatMessageRepository chatMessageRepository) {
+                                ChatMessageRepository chatMessageRepository,
+                                BlockRepository blockRepository) {
         this.userRepository = userRepository;
         this.userInfoRepository = userInfoRepository;
         this.followRepository = followRepository;
         this.likeRepository = likeRepository;
         this.commentRepository = commentRepository;
         this.chatMessageRepository = chatMessageRepository;
+        this.blockRepository = blockRepository;
     }
 
     @Transactional(readOnly = true)
@@ -42,6 +46,12 @@ public class CompatibilityService {
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
         User target = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // SECURITY: Block check — prevent compatibility computation with blocked users
+        if (blockRepository.existsByBlockerAndBlocked(target, requester) ||
+                blockRepository.existsByBlockerAndBlocked(requester, target)) {
+            throw new RuntimeException("Action not allowed");
+        }
 
         UserInfo requesterInfo = userInfoRepository.findByUser(requester).orElse(null);
         UserInfo targetInfo = userInfoRepository.findByUser(target).orElse(null);

@@ -5,6 +5,7 @@ import com.example.socialmedia.dto.MilestoneResponse.Badge;
 import com.example.socialmedia.dto.MilestoneResponse.TimelineEvent;
 import com.example.socialmedia.entity.Follow;
 import com.example.socialmedia.entity.User;
+import com.example.socialmedia.repository.BlockRepository;
 import com.example.socialmedia.repository.FollowRepository;
 import com.example.socialmedia.repository.UserRepository;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -37,10 +38,13 @@ public class MilestoneService {
 
     private final UserRepository userRepository;
     private final FollowRepository followRepository;
+    private final BlockRepository blockRepository;
 
-    public MilestoneService(UserRepository userRepository, FollowRepository followRepository) {
+    public MilestoneService(UserRepository userRepository, FollowRepository followRepository,
+            BlockRepository blockRepository) {
         this.userRepository = userRepository;
         this.followRepository = followRepository;
+        this.blockRepository = blockRepository;
     }
 
     @Transactional(readOnly = true)
@@ -49,6 +53,12 @@ public class MilestoneService {
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
         User friend = userRepository.findById(friendId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // SECURITY: Block check — prevent milestone viewing with blocked users
+        if (blockRepository.existsByBlockerAndBlocked(friend, requester) ||
+                blockRepository.existsByBlockerAndBlocked(requester, friend)) {
+            throw new RuntimeException("Action not allowed");
+        }
 
         // Must be connected in at least one direction
         Follow aToB = followRepository.findByFollowerAndFollowing(requester, friend).orElse(null);

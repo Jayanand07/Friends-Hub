@@ -8,7 +8,9 @@ import java.util.HashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "chat_groups")
+@Table(name = "chat_groups", indexes = {
+        @Index(name = "idx_cg_created_by", columnList = "created_by_id")
+})
 public class ChatGroup {
 
     @Id

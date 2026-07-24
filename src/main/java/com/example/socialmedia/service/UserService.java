@@ -368,14 +368,36 @@ public class UserService {
     // ─── Followers / Following ────────────────────────────────
 
     @Transactional(readOnly = true)
-    public List<FollowUserResponse> getFollowers(Long userId) {
+    public List<FollowUserResponse> getFollowers(Long userId, String requesterEmail) {
+        // SECURITY: Block check — verify the requester is not blocked by the target user
+        User requester = userRepository.findByEmail(requesterEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        User target = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (blockRepository.existsByBlockerAndBlocked(target, requester) ||
+                blockRepository.existsByBlockerAndBlocked(requester, target)) {
+            throw new RuntimeException("Action not allowed");
+        }
+
         return followRepository.findFollowersWithUserInfoByFollowingId(userId).stream()
                 .map(this::mapToFollowUserResponse)
                 .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
-    public List<FollowUserResponse> getFollowing(Long userId) {
+    public List<FollowUserResponse> getFollowing(Long userId, String requesterEmail) {
+        // SECURITY: Block check — verify the requester is not blocked by the target user
+        User requester = userRepository.findByEmail(requesterEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        User target = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (blockRepository.existsByBlockerAndBlocked(target, requester) ||
+                blockRepository.existsByBlockerAndBlocked(requester, target)) {
+            throw new RuntimeException("Action not allowed");
+        }
+
         return followRepository.findByFollowerId(userId).stream()
                 .map(follow -> mapToFollowUserResponse(follow.getFollowing()))
                 .collect(Collectors.toList());

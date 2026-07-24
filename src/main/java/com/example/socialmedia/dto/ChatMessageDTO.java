@@ -8,10 +8,8 @@ public class ChatMessageDTO {
     private Long id;
     private Long senderId;
     private String senderName;
-    private String senderEmail;
     private Long receiverId;
     private String receiverName;
-    private String receiverEmail;
     private String content;
     private String iv;
     private String imageUrl;
@@ -24,17 +22,15 @@ public class ChatMessageDTO {
     public ChatMessageDTO() {
     }
 
-    public ChatMessageDTO(Long id, Long senderId, String senderName, String senderEmail,
-            Long receiverId, String receiverName, String receiverEmail,
+    public ChatMessageDTO(Long id, Long senderId, String senderName,
+            Long receiverId, String receiverName,
             String content, String iv, String imageUrl, LocalDateTime timestamp,
             Boolean isRead, Boolean isDeleted) {
         this.id = id;
         this.senderId = senderId;
         this.senderName = senderName;
-        this.senderEmail = senderEmail;
         this.receiverId = receiverId;
         this.receiverName = receiverName;
-        this.receiverEmail = receiverEmail;
         this.content = content;
         this.iv = iv;
         this.imageUrl = imageUrl;
@@ -69,14 +65,6 @@ public class ChatMessageDTO {
         this.senderName = senderName;
     }
 
-    public String getSenderEmail() {
-        return senderEmail;
-    }
-
-    public void setSenderEmail(String senderEmail) {
-        this.senderEmail = senderEmail;
-    }
-
     public Long getReceiverId() {
         return receiverId;
     }
@@ -91,14 +79,6 @@ public class ChatMessageDTO {
 
     public void setReceiverName(String receiverName) {
         this.receiverName = receiverName;
-    }
-
-    public String getReceiverEmail() {
-        return receiverEmail;
-    }
-
-    public void setReceiverEmail(String receiverEmail) {
-        this.receiverEmail = receiverEmail;
     }
 
     public String getContent() {

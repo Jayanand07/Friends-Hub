@@ -6,6 +6,9 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "follow_requests", uniqueConstraints = {
         @UniqueConstraint(columnNames = { "requester_id", "target_id" })
+}, indexes = {
+        @Index(name = "idx_fr_requester", columnList = "requester_id"),
+        @Index(name = "idx_fr_target", columnList = "target_id")
 })
 public class FollowRequest {
 

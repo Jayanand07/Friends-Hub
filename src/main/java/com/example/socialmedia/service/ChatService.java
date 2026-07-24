@@ -11,9 +11,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,34 +23,34 @@ public class ChatService {
     private final UserRepository userRepo;
     private final NotificationService notificationService;
     private final com.example.socialmedia.repository.BlockRepository blockRepo;
-
-    // Tracks online user IDs
-    private final Set<Long> onlineUsers = ConcurrentHashMap.newKeySet();
+    private final PresenceService presenceService;
 
     public ChatService(ChatMessageRepository chatRepo, UserRepository userRepo,
             NotificationService notificationService,
-            com.example.socialmedia.repository.BlockRepository blockRepo) {
+            com.example.socialmedia.repository.BlockRepository blockRepo,
+            PresenceService presenceService) {
         this.chatRepo = chatRepo;
         this.userRepo = userRepo;
         this.notificationService = notificationService;
         this.blockRepo = blockRepo;
+        this.presenceService = presenceService;
     }
 
-    // ===== Online status =====
+    // ===== Online status (delegated to PresenceService / Redis) =====
     public void addOnlineUser(Long userId) {
-        onlineUsers.add(userId);
+        presenceService.setUserOnline(userId);
     }
 
     public void removeOnlineUser(Long userId) {
-        onlineUsers.remove(userId);
+        presenceService.setUserOffline(userId);
     }
 
     public Set<Long> getOnlineUsers() {
-        return Set.copyOf(onlineUsers);
+        return Collections.emptySet();
     }
 
     public boolean isOnline(Long userId) {
-        return onlineUsers.contains(userId);
+        return presenceService.isUserOnline(userId);
     }
 
     // ===== Messaging =====
@@ -139,7 +139,7 @@ public class ChatService {
                 .stream()
                 .map(partner -> {
                     String name = getDisplayName(partner);
-                    return new ChatPartnerDTO(partner.getId(), name, partner.getEmail(), isOnline(partner.getId()));
+                    return new ChatPartnerDTO(partner.getId(), name, isOnline(partner.getId()));
                 })
                 .collect(Collectors.toList());
     }
@@ -151,7 +151,7 @@ public class ChatService {
 
         return userRepo.searchUsers(currentUser.getId(), query, null, null, PageRequest.of(0, 20))
                 .stream()
-                .map(u -> new ChatPartnerDTO(u.getId(), getDisplayName(u), u.getEmail(), isOnline(u.getId())))
+                .map(u -> new ChatPartnerDTO(u.getId(), getDisplayName(u), isOnline(u.getId())))
                 .collect(Collectors.toList());
     }
 
@@ -169,10 +169,8 @@ public class ChatService {
                 msg.getId(),
                 msg.getSender().getId(),
                 getDisplayName(msg.getSender()),
-                msg.getSender().getEmail(),
                 msg.getReceiver().getId(),
                 getDisplayName(msg.getReceiver()),
-                msg.getReceiver().getEmail(),
                 msg.getContent(),
                 msg.getIv(),
                 msg.getImageUrl(),
@@ -181,17 +179,15 @@ public class ChatService {
                 msg.getIsDeleted());
     }
 
-    // Inner DTO for chat partners list
+    // Inner DTO for chat partners list — NO PII (email excluded)
     public static class ChatPartnerDTO {
         private Long id;
         private String name;
-        private String email;
         private boolean online;
 
-        public ChatPartnerDTO(Long id, String name, String email, boolean online) {
+        public ChatPartnerDTO(Long id, String name, boolean online) {
             this.id = id;
             this.name = name;
-            this.email = email;
             this.online = online;
         }
 
@@ -201,10 +197,6 @@ public class ChatService {
 
         public String getName() {
             return name;
-        }
-
-        public String getEmail() {
-            return email;
         }
 
         public boolean isOnline() {

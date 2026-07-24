@@ -9,6 +9,7 @@ import com.example.socialmedia.service.PostService;
 import com.example.socialmedia.service.SupabaseStorageService;
 import org.springframework.security.core.Authentication;
 
+import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
@@ -24,26 +25,36 @@ public class PostController {
     private final PostService postService;
     private final SupabaseStorageService storageService;
 
+    private static final org.slf4j.Logger log =
+        org.slf4j.LoggerFactory.getLogger(PostController.class);
+
     public PostController(PostService postService, SupabaseStorageService storageService) {
         this.postService = postService;
         this.storageService = storageService;
     }
 
     @PostMapping("/upload-image")
-    public ResponseEntity<?> uploadImage(@RequestParam("image") MultipartFile image) {
+    public ResponseEntity<?> uploadImage(@RequestParam("image") MultipartFile image,
+            Authentication authentication) {
+        // SECURITY: Track which user uploaded this image
+        String userEmail = authentication != null ? authentication.getName() : "anonymous";
+        log.info("Image upload initiated by user: {}", userEmail);
         try {
             String imageUrl = storageService.uploadImage(image);
+            log.info("Image upload successful for user: {}, url: {}", userEmail, imageUrl);
             return ResponseEntity.ok(Map.of("imageUrl", imageUrl));
         } catch (IllegalArgumentException e) {
+            log.warn("Image upload rejected for user {}: {}", userEmail, e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
+            log.error("Image upload failed for user {}: {}", userEmail, e.getMessage());
             return ResponseEntity.internalServerError().body(Map.of("message", "Upload failed: " + e.getMessage()));
         }
     }
 
     @PostMapping
     public ResponseEntity<PostResponse> createPost(
-            @RequestBody PostRequest request,
+            @Valid @RequestBody PostRequest request,
             Authentication authentication) {
         return ResponseEntity.ok(postService.createPost(request, authentication.getName()));
     }
@@ -62,8 +73,9 @@ public class PostController {
     }
 
     @GetMapping("/{postId}/comments")
-    public ResponseEntity<Page<CommentResponse>> getCommentsByPost(@PathVariable Long postId, Pageable pageable) {
-        return ResponseEntity.ok(postService.getCommentsByPost(postId, pageable));
+    public ResponseEntity<Page<CommentResponse>> getCommentsByPost(@PathVariable Long postId, Pageable pageable,
+            Authentication authentication) {
+        return ResponseEntity.ok(postService.getCommentsByPost(postId, pageable, authentication.getName()));
     }
 
     @PostMapping("/{postId}/like")
@@ -86,7 +98,7 @@ public class PostController {
     @PostMapping("/{postId}/comment")
     public ResponseEntity<MessageResponse> addComment(
             @PathVariable Long postId,
-            @RequestBody CommentRequest request,
+            @Valid @RequestBody CommentRequest request,
             Authentication authentication) {
         postService.addComment(postId, request, authentication.getName());
         return ResponseEntity.ok(new MessageResponse("Comment added successfully"));
