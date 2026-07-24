@@ -121,17 +121,17 @@ export default function ProfilePreview() {
                 className="pt-4"
             >
                 {/* Profile card */}
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="avatar w-[56px] h-[56px] text-[18px] overflow-hidden rounded-full border border-[var(--border-color)]">
+                <Link to="/profile" className="flex items-center gap-3 mb-6 group cursor-pointer">
+                    <div className="avatar w-[56px] h-[56px] text-[18px] overflow-hidden rounded-full border border-[var(--border-color)] group-hover:ring-2 ring-[var(--accent)] transition-all">
                         {profilePic ? (
                             <img src={profilePic} alt={displayName} className="w-full h-full object-cover rounded-full" />
                         ) : initial}
                     </div>
                     <div className="min-w-0">
-                        <p className="text-[14px] font-semibold text-[var(--text-primary)] truncate">{displayName}</p>
+                        <p className="text-[14px] font-semibold text-[var(--text-primary)] truncate group-hover:underline">{displayName}</p>
                         <p className="text-[13px] text-[var(--text-muted)] truncate">@{user?.email?.split('@')[0]}</p>
                     </div>
-                </div>
+                </Link>
 
                 {/* Header */}
                 <div className="flex items-center justify-between mb-3">

@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Search, MessageCircle, Plus } from 'lucide-react';
+import { Search, MessageCircle, Plus, Users } from 'lucide-react';
 import { searchChatUsers } from '../../api/chat';
 
 export default function UserListSidebar({ conversations, activeUserId, onSelectUser, onlineUsers = [] }) {
     const [search, setSearch] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [searching, setSearching] = useState(false);
+    const [showOnlineOnly, setShowOnlineOnly] = useState(false);
 
     const debounceRef = useRef(null);
 
@@ -40,22 +41,40 @@ export default function UserListSidebar({ conversations, activeUserId, onSelectU
         };
     }, []);
 
-    const displayList = search.trim().length >= 2 ? searchResults : conversations;
-    const isOnline = (userId) => onlineUsers.includes(userId);
+    // Strict type string coercion for online status check
+    const isOnline = (userId) => onlineUsers.some(id => String(id) === String(userId));
+
+    let baseList = search.trim().length >= 2 ? searchResults : conversations;
+    if (showOnlineOnly) {
+        baseList = baseList.filter(u => isOnline(u.id) || u.online);
+    }
 
     return (
         <div className="flex flex-col h-full">
             {/* Header */}
             <div className="p-4 border-b border-[var(--border-color)]">
-                <h2 className="text-base font-bold flex items-center gap-2 mb-3">
-                    <MessageCircle size={18} className="text-[var(--accent)]" />
-                    Messages
+                <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-base font-bold flex items-center gap-2">
+                        <MessageCircle size={18} className="text-[var(--accent)]" />
+                        Messages
+                    </h2>
                     {onlineUsers.length > 0 && (
-                        <span className="text-[10px] font-medium text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded-full">
+                        <button
+                            type="button"
+                            onClick={() => setShowOnlineOnly(!showOnlineOnly)}
+                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-full transition-all cursor-pointer flex items-center gap-1 ${
+                                showOnlineOnly
+                                    ? 'bg-emerald-500 text-white shadow-sm'
+                                    : 'text-emerald-400 bg-emerald-400/10 hover:bg-emerald-400/20'
+                            }`}
+                            title={showOnlineOnly ? "Show all users" : "Filter active online users"}
+                        >
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
                             {onlineUsers.length} online
-                        </span>
+                        </button>
                     )}
-                </h2>
+                </div>
+
                 <div className="relative">
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                     <input
@@ -73,7 +92,13 @@ export default function UserListSidebar({ conversations, activeUserId, onSelectU
                 {search.trim().length >= 2 && searchResults.length === 0 && !searching && (
                     <p className="text-center text-[11px] text-[var(--text-muted)] py-8">No users found</p>
                 )}
-                {displayList.length === 0 && search.trim().length < 2 && (
+                {showOnlineOnly && baseList.length === 0 && (
+                    <div className="text-center py-10 px-4">
+                        <Users size={24} className="text-emerald-400 mx-auto mb-2 opacity-60" />
+                        <p className="text-[12px] text-[var(--text-muted)]">No active users online right now</p>
+                    </div>
+                )}
+                {baseList.length === 0 && search.trim().length < 2 && !showOnlineOnly && (
                     <div className="text-center py-10 px-4">
                         <div className="w-14 h-14 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-color)] flex items-center justify-center mx-auto mb-3">
                             <Plus size={20} className="text-[var(--text-muted)]" />
@@ -82,7 +107,7 @@ export default function UserListSidebar({ conversations, activeUserId, onSelectU
                     </div>
                 )}
                 <AnimatePresence>
-                    {displayList.map((user, idx) => {
+                    {baseList.map((user, idx) => {
                         const online = isOnline(user.id) || user.online;
                         return (
                             <motion.button
@@ -104,13 +129,18 @@ export default function UserListSidebar({ conversations, activeUserId, onSelectU
                                         </div>
                                     </Link>
                                     {online && (
-                                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[var(--bg-secondary)]" />
+                                        <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[var(--bg-secondary)] shadow-sm" />
                                     )}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="text-[13px] font-medium text-[var(--text-primary)] truncate">{user.name}</p>
-                                    <p className="text-[10px] text-[var(--text-muted)] truncate">
-                                        {online ? <span className="text-emerald-400">Online</span> : "Offline"}
+                                    <p className="text-[10px] text-[var(--text-muted)] truncate flex items-center gap-1">
+                                        {online ? (
+                                            <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                                Online
+                                            </span>
+                                        ) : "Offline"}
                                     </p>
                                 </div>
                                 {activeUserId === user.id && (

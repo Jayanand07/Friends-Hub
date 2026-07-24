@@ -162,7 +162,7 @@ export default function ChatWindow({
         );
     }
 
-    const isOtherUserOnline = onlineUsers.some(u => u === selectedUser.id || u?.userId === selectedUser.id || u?.id === selectedUser.id);
+    const isOtherUserOnline = onlineUsers.some(u => String(u?.userId || u?.id || u) === String(selectedUser.id));
 
     return (
         <div className="flex flex-col h-full bg-[var(--bg-card)]/50 backdrop-blur-sm relative">
