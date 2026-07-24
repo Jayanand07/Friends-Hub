@@ -13,4 +13,4 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 COPY --from=build /app/target/social-media-backend-0.0.1-SNAPSHOT.jar app.jar
 USER appuser
 EXPOSE 8080
-ENTRYPOINT ["java", "-Xms256m", "-Xmx512m", "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Xms128m", "-Xmx224m", "-XX:MaxMetaspaceSize=96m", "-XX:ReservedCodeCacheSize=48m", "-Xss256k", "-XX:+UseG1GC", "-XX:+UseStringDeduplication", "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]

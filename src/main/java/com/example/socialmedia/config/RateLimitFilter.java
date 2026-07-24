@@ -54,11 +54,16 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String clientIp = getClientIp(request);
         RateLimitEntry entry = ipCounters.computeIfAbsent(clientIp, k -> new RateLimitEntry());
 
-        // Reset counter if the 1-minute window has elapsed
+        // Reset counter or clean up stale entries if 1-minute window has elapsed
         long now = System.currentTimeMillis();
         if (now - entry.windowStart.get() > 60_000L) {
             entry.count.set(0);
             entry.windowStart.set(now);
+        }
+
+        // Bounded map maintenance: purge stale entries if map size exceeds threshold
+        if (ipCounters.size() > 1000) {
+            ipCounters.entrySet().removeIf(e -> (now - e.getValue().windowStart.get()) > 60_000L);
         }
 
         int currentCount = entry.count.incrementAndGet();
