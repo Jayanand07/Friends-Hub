@@ -5,6 +5,9 @@ import jakarta.persistence.*;
 @Entity
 @Table(name = "likes", uniqueConstraints = {
         @UniqueConstraint(columnNames = { "user_id", "post_id" })
+}, indexes = {
+        @Index(name = "idx_like_post", columnList = "post_id"),
+        @Index(name = "idx_like_user", columnList = "user_id")
 })
 public class Like {
 

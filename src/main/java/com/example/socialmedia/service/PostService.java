@@ -94,7 +94,9 @@ public class PostService {
                 externalApiService.notifyPostCreated(savedPost);
 
                 // Send Kafka event for async processing
-                sendNotificationEvent(post.getUser().getId(), "POST", "LIKE",
+                // SECURITY: Use "POST" type instead of "LIKE" to avoid creating a
+                // bogus self-notification for the post author.
+                sendNotificationEvent(post.getUser().getId(), "POST", "POST",
                         user.getId(), savedPost.getId(), "Post created");
 
                 return mapToPostResponse(savedPost, userEmail);
@@ -162,6 +164,12 @@ public class PostService {
                 Post post = postRepository.findById(postId)
                                 .orElseThrow(() -> new RuntimeException("Post not found"));
 
+                // SECURITY: Block check — prevent blocked users from interacting
+                if (blockRepository.existsByBlockerAndBlocked(post.getUser(), user) ||
+                        blockRepository.existsByBlockerAndBlocked(user, post.getUser())) {
+                        throw new RuntimeException("Action not allowed");
+                }
+
                 java.util.Optional<Like> existingLike = likeRepository.findByUserAndPost(user, post);
 
                 if (existingLike.isPresent()) {
@@ -211,6 +219,12 @@ public class PostService {
                 Post post = postRepository.findById(postId)
                                 .orElseThrow(() -> new RuntimeException("Post not found"));
 
+                // SECURITY: Block check
+                if (blockRepository.existsByBlockerAndBlocked(post.getUser(), user) ||
+                        blockRepository.existsByBlockerAndBlocked(user, post.getUser())) {
+                        throw new RuntimeException("Action not allowed");
+                }
+
                 Optional<SavedPost> existingSaved = savedPostRepository.findByUserAndPost(user, post);
 
                 if (existingSaved.isPresent()) {
@@ -239,6 +253,12 @@ public class PostService {
 
                 Post post = postRepository.findById(postId)
                                 .orElseThrow(() -> new RuntimeException("Post not found"));
+
+                // SECURITY: Block check — prevent blocked users from commenting
+                if (blockRepository.existsByBlockerAndBlocked(post.getUser(), user) ||
+                        blockRepository.existsByBlockerAndBlocked(user, post.getUser())) {
+                        throw new RuntimeException("Action not allowed");
+                }
 
                 Comment comment = new Comment();
                 comment.setContent(request.getContent());

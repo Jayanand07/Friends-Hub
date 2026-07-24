@@ -32,6 +32,7 @@ import com.example.socialmedia.entity.AuthProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import java.time.Duration;
 import com.example.socialmedia.dto.OAuthRequest;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @Service
 public class AuthService {
@@ -49,6 +50,9 @@ public class AuthService {
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
+
+    @org.springframework.beans.factory.annotation.Value("${app.google.client-id:}")
+    private String googleClientId;
 
     public AuthService(UserRepository userRepository, UserInfoRepository userInfoRepository,
             PasswordEncoder passwordEncoder, JwtService jwtService, AuthenticationManager authenticationManager,
@@ -80,7 +84,12 @@ public class AuthService {
                 .tokenExpiry(LocalDateTime.now().plusHours(24))
                 .build();
 
-        User savedUser = userRepository.save(user);
+        User savedUser;
+        try {
+            savedUser = userRepository.save(user);
+        } catch (DataIntegrityViolationException e) {
+            throw new RuntimeException("Email already in use");
+        }
 
         UserInfo userInfo = UserInfo.builder()
                 .firstName(request.getFirstName())
@@ -112,8 +121,8 @@ public class AuthService {
         return "User registered successfully. Please check your email to verify your account.";
     }
 
+    @Transactional
     public AuthResponse login(LoginRequest request) {
-        String email = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : "";
 
         String attemptsKey = "login:attempts:" + email;
         try {
@@ -166,6 +175,7 @@ public class AuthService {
                 .build();
     }
 
+    @Transactional
     public String verifyAccount(String token) {
         if (token == null || token.isBlank()) {
             throw new RuntimeException("Verification token is required");
@@ -288,13 +298,34 @@ public class AuthService {
         // Extract verified claims
         String verifiedEmail = claims.get("email", String.class);
         String verifiedName = claims.get("name", String.class);
-        String emailVerified = claims.get("email_verified", String.class);
+        // SECURITY: Google sends email_verified as boolean, not String.
+        // Using Object to handle both formats safely.
+        Object emailVerifiedObj = claims.get("email_verified");
+        boolean emailVerified = Boolean.TRUE.equals(emailVerifiedObj);
 
         if (verifiedEmail == null || verifiedEmail.isBlank()) {
             throw new RuntimeException("Google ID token does not contain an email");
         }
-        if (!"true".equals(emailVerified)) {
+        if (!emailVerified) {
             throw new RuntimeException("Google email is not verified");
+        }
+
+        // SECURITY: Validate token issuer — must be Google
+        String iss = claims.getIssuer();
+        if (iss == null || !(iss.equals("https://accounts.google.com")
+                || iss.equals("accounts.google.com"))) {
+            throw new RuntimeException("Invalid Google ID token issuer: " + iss);
+        }
+
+        // SECURITY: Validate token audience (client ID) if configured
+        String expectedAudience = googleClientId;
+        if (expectedAudience != null && !expectedAudience.isBlank()) {
+            String aud = claims.getAudience();
+            if (aud == null || !aud.equals(expectedAudience)) {
+                throw new RuntimeException("Invalid Google ID token audience");
+            }
+        } else {
+            log.warn("Google OAuth client ID not configured — skipping audience validation");
         }
 
         // Use VERIFIED email from token, NOT from request body

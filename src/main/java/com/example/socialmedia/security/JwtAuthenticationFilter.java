@@ -20,6 +20,8 @@ import java.io.IOException;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(JwtAuthenticationFilter.class);
+
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
     private final TokenBlacklistService tokenBlacklistService;
@@ -67,7 +69,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
             }
         } catch (Exception e) {
-            // Token is expired or invalid - allow filter chain to continue without authentication, returning 401
+            log.warn("JWT authentication failed for request {} {}: {}", request.getMethod(),
+                    request.getRequestURI(), e.getMessage());
         }
         filterChain.doFilter(request, response);
     }

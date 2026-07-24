@@ -31,10 +31,12 @@ public class NotificationService {
         this.messagingTemplate = messagingTemplate;
     }
 
+    @Transactional
     public void createNotification(User targetUser, NotificationType type, String content, User actor) {
         createNotification(targetUser, type, content, actor, null);
     }
 
+    @Transactional
     public void createNotification(User targetUser, NotificationType type, String content, User actor, Long postId) {
         // Don't notify yourself
         if (targetUser == null || actor == null || targetUser.getId().equals(actor.getId()))
@@ -53,6 +55,7 @@ public class NotificationService {
         }
     }
 
+    @Transactional(readOnly = true)
     public List<NotificationDTO> getUserNotifications(String email) {
         User user = userRepo.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -63,6 +66,7 @@ public class NotificationService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public long getUnreadCount(String email) {
         User user = userRepo.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));

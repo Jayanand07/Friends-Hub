@@ -54,6 +54,7 @@ public class ChatService {
     }
 
     // ===== Messaging =====
+    @Transactional
     public ChatMessageDTO sendMessage(String senderEmail, Long receiverId, String content, String imageUrl, String iv) {
         User sender = userRepo.findByEmail(senderEmail)
                 .orElseThrow(() -> new RuntimeException("Sender not found"));
@@ -86,6 +87,12 @@ public class ChatService {
         User otherUser = userRepo.findById(otherUserId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
+        // SECURITY: Block check — prevent blocked users from viewing conversations
+        if (blockRepo.existsByBlockerAndBlocked(currentUser, otherUser) ||
+                blockRepo.existsByBlockerAndBlocked(otherUser, currentUser)) {
+            throw new RuntimeException("Conversation not available");
+        }
+
         return chatRepo.findConversation(currentUser, otherUser)
                 .stream()
                 .map(this::toDTO)
@@ -98,6 +105,13 @@ public class ChatService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
         User sender = userRepo.findById(senderUserId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // SECURITY: Block check
+        if (blockRepo.existsByBlockerAndBlocked(reader, sender) ||
+                blockRepo.existsByBlockerAndBlocked(sender, reader)) {
+            throw new RuntimeException("Action not allowed");
+        }
+
         return chatRepo.markMessagesAsRead(sender, reader);
     }
 

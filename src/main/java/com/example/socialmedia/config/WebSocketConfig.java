@@ -35,7 +35,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(@org.springframework.lang.NonNull StompEndpointRegistry registry) {
         List<String> origins = new ArrayList<>(List.of(
                 "http://localhost:5173",
-                "http://localhost:3000"
+                "http://localhost:3000",
+                "https://friendshub.me",
+                "https://www.friendshub.me"
         ));
         if (frontendUrl != null && !frontendUrl.isBlank()) {
             origins.add(frontendUrl);

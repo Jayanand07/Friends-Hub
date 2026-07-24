@@ -1,6 +1,7 @@
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 
@@ -12,11 +13,10 @@ const server = http.createServer(app);
 // Connect to MongoDB Atlas / Local MongoDB
 connectDB();
 
-// SECURITY: Restrict CORS to known frontend origin only (C-3 fix)
+// SECURITY: Restrict CORS to known frontend origin only
 const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',').map(s => s.trim());
 app.use(cors({
     origin: function(origin, callback) {
-        // Allow requests with no origin (server-to-server, curl, health checks)
         if (!origin) return callback(null, true);
         if (allowedOrigins.includes(origin)) {
             callback(null, true);
@@ -28,7 +28,10 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// SECURITY: JWT authentication middleware (C-3 fix)
+// JWT Secret Key (same as Spring Boot backend)
+const JWT_SECRET = process.env.JWT_SECRET || 'secret_key_change_me_in_production_environment_12345';
+
+// SECURITY: Full cryptographic JWT signature verification middleware
 function authMiddleware(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -36,26 +39,17 @@ function authMiddleware(req, res, next) {
     }
     try {
         const token = authHeader.substring(7);
-        // Decode JWT payload to extract userId (same secret as Spring Boot backend)
-        const parts = token.split('.');
-        if (parts.length !== 3) {
-            return res.status(401).json({ success: false, error: 'Invalid token format' });
-        }
-        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
-
-        // Check expiry
-        if (payload.exp && Date.now() / 1000 > payload.exp) {
-            return res.status(401).json({ success: false, error: 'Token expired' });
-        }
+        // Cryptographically verify signature and check expiry using JWT_SECRET
+        const decoded = jwt.verify(token, JWT_SECRET);
 
         req.user = {
-            email: payload.sub,
-            userId: payload.userId,
-            role: payload.role
+            email: decoded.sub,
+            userId: decoded.userId,
+            role: decoded.role
         };
         next();
     } catch (err) {
-        return res.status(401).json({ success: false, error: 'Invalid or expired token' });
+        return res.status(401).json({ success: false, error: 'Invalid or expired token signature' });
     }
 }
 
@@ -78,7 +72,7 @@ server.listen(PORT, () => {
     console.log(`====================================================`);
     console.log(`⚡ FriendsHub Node.js + Express + MongoDB Service`);
     console.log(`🚀 Running on: http://localhost:${PORT}`);
-    console.log(`🔒 Auth: JWT middleware enabled`);
+    console.log(`🔒 Auth: JWT signature verification enabled`);
     console.log(`🌐 CORS: Restricted to ${allowedOrigins.join(', ')}`);
     console.log(`====================================================`);
 });

@@ -176,7 +176,7 @@ public class ChatGroupService {
         ChatGroup group = groupRepo.findById(groupId)
                 .orElseThrow(() -> new RuntimeException("Group not found"));
 
-        if (!group.getMembers().contains(requester)) {
+        if (!isMemberOfGroup(group, requester)) {
             throw new RuntimeException("Not a member of this group");
         }
 
@@ -193,7 +193,7 @@ public class ChatGroupService {
         User requester = userRepo.findByEmail(requesterEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        if (!group.getMembers().contains(requester)) {
+        if (!isMemberOfGroup(group, requester)) {
             throw new RuntimeException("Not a member of this group");
         }
 
@@ -203,6 +203,15 @@ public class ChatGroupService {
     }
 
     // Helpers
+
+    /**
+     * SECURITY: Compare member by ID instead of using Set.contains()
+     * which fails on Hibernate proxies due to reference equality.
+     */
+    private boolean isMemberOfGroup(ChatGroup group, User user) {
+        return group.getMembers().stream()
+                .anyMatch(member -> member.getId().equals(user.getId()));
+    }
 
     private ChatGroupMessageDTO toMessageDTO(ChatGroupMessage msg) {
         String name = getDisplayName(msg.getSender());
