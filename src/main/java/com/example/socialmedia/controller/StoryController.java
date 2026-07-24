@@ -52,7 +52,8 @@ public class StoryController {
     }
 
     @GetMapping("/{storyId}/viewers")
-    public ResponseEntity<List<FollowUserResponse>> getStoryViewers(@PathVariable Long storyId) {
-        return ResponseEntity.ok(storyService.getStoryViewers(storyId));
+    public ResponseEntity<List<FollowUserResponse>> getStoryViewers(
+            @PathVariable Long storyId, Authentication authentication) {
+        return ResponseEntity.ok(storyService.getStoryViewers(storyId, authentication.getName()));
     }
 }

@@ -13,6 +13,13 @@ let memoryChats = [
 router.get('/messages/:user1/:user2', async (req, res) => {
     try {
         const { user1, user2 } = req.params;
+
+        // SECURITY: Only allow users to read their OWN conversations
+        const currentUserId = req.user.userId ? req.user.userId.toString() : null;
+        if (currentUserId && currentUserId !== user1 && currentUserId !== user2) {
+            return res.status(403).json({ success: false, error: 'Access denied: not your conversation' });
+        }
+
         const messages = await ChatMessage.find({
             $or: [
                 { senderId: user1, receiverId: user2 },

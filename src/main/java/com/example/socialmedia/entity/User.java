@@ -1,6 +1,7 @@
 package com.example.socialmedia.entity;
 
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -19,6 +20,7 @@ public class User {
     @Column(unique = true, nullable = false)
     private String email;
 
+    @JsonIgnore
     @Column(nullable = false)
     private String password;
 
@@ -28,10 +30,12 @@ public class User {
     @Enumerated(EnumType.STRING)
     private Role role = Role.ROLE_USER;
 
+    @JsonIgnore
     private String verificationToken;
 
     private LocalDateTime tokenExpiry;
 
+    @JsonIgnore
     private String passwordResetToken;
 
     private LocalDateTime resetTokenExpiry;

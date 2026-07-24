@@ -127,7 +127,17 @@ public class StoryService {
         }
     }
 
-    public List<FollowUserResponse> getStoryViewers(Long storyId) {
+    public List<FollowUserResponse> getStoryViewers(Long storyId, String requesterEmail) {
+        Story story = storyRepository.findById(storyId)
+                .orElseThrow(() -> new RuntimeException("Story not found"));
+        User requester = userRepository.findByEmail(requesterEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+        // SECURITY: Only story owner can see viewers
+        if (!story.getUser().getId().equals(requester.getId())) {
+            throw new RuntimeException("Only the story owner can view story viewers");
+        }
+
         List<StoryView> views = storyViewRepository.findByStoryId(storyId);
         return views.stream().map(v -> {
             User viewer = v.getViewer();

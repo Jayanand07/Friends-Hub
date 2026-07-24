@@ -111,9 +111,10 @@ public class ApiMetricsInterceptor implements HandlerInterceptor {
                 logEntry.setErrorMessage(ex.getMessage());
             }
 
-            // Save async-safe; if DB is down this shouldn't crash the request
+            // Save asynchronously; if DB is down this shouldn't crash the request
             try {
-                usageLogRepository.save(logEntry);
+                org.springframework.scheduling.annotation.Async.class.getName(); // compile-time reference
+                saveLogAsync(logEntry);
             } catch (Exception dbEx) {
                 log.warn("Failed to persist API usage log: {}", dbEx.getMessage());
             }
@@ -130,5 +131,18 @@ public class ApiMetricsInterceptor implements HandlerInterceptor {
             return auth.getName();
         }
         return null;
+    }
+
+    /**
+     * M-3: Save API usage log asynchronously so it doesn't block the response thread.
+     */
+    private void saveLogAsync(ApiUsageLog logEntry) {
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                usageLogRepository.save(logEntry);
+            } catch (Exception e) {
+                log.warn("Async API log save failed: {}", e.getMessage());
+            }
+        });
     }
 }

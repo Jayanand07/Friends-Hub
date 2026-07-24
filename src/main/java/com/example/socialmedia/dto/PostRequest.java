@@ -1,6 +1,9 @@
 package com.example.socialmedia.dto;
 
+import jakarta.validation.constraints.Size;
+
 public class PostRequest {
+    @Size(max = 5000, message = "Post content cannot exceed 5000 characters")
     private String content;
     private String imageUrl;
 

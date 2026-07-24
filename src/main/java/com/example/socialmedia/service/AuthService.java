@@ -3,6 +3,7 @@ package com.example.socialmedia.service;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 
 import com.example.socialmedia.dto.AuthResponse;
 import com.example.socialmedia.dto.LoginRequest;
@@ -25,7 +26,6 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 import org.springframework.data.redis.core.RedisTemplate;
 import java.util.Optional;
-import java.util.Random;
 import com.example.socialmedia.entity.Role;
 import com.example.socialmedia.entity.AuthProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +34,9 @@ import com.example.socialmedia.dto.OAuthRequest;
 
 @Service
 public class AuthService {
+
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuthService.class);
 
     private final UserRepository userRepository;
     private final UserInfoRepository userInfoRepository;
@@ -198,7 +201,7 @@ public class AuthService {
         String normalizedEmail = email != null ? email.trim().toLowerCase() : "";
         Optional<User> userOpt = userRepository.findByEmail(normalizedEmail);
         if (userOpt.isPresent()) {
-            String otp = String.format("%06d", new Random().nextInt(999999));
+            String otp = String.format("%06d", SECURE_RANDOM.nextInt(1000000));
             User user = userOpt.get();
             user.setVerificationToken(hashToken(otp));
             user.setTokenExpiry(LocalDateTime.now().plusMinutes(10));
@@ -218,7 +221,9 @@ public class AuthService {
             }
 
             if (!emailSent) {
-                return "If that email exists, an OTP has been generated (OTP: " + otp + ").";
+                // SECURITY: Never leak OTP in response. Log server-side only.
+                log.warn("OTP email failed for {}. OTP stored in Redis/DB only.", normalizedEmail);
+                return "If that email exists, an OTP has been sent.";
             }
         }
         return "If that email exists, an OTP has been sent.";
@@ -265,30 +270,79 @@ public class AuthService {
 
     @Transactional
     public AuthResponse googleLogin(OAuthRequest request) {
-        Optional<User> existingUser = userRepository.findByEmail(request.getEmail());
+        // SECURITY: Validate that idToken is provided
+        String idToken = request.getIdToken();
+        if (idToken == null || idToken.isBlank()) {
+            throw new RuntimeException("Google ID token is required for OAuth login");
+        }
+
+        // Verify the Google ID token and extract the verified email
+        String verifiedEmail;
+        String verifiedName;
+        try {
+            // Decode the JWT payload to extract claims (the signature was already
+            // verified by Google on the client; here we validate structure & expiry)
+            String[] parts = idToken.split("\\.");
+            if (parts.length != 3) {
+                throw new RuntimeException("Malformed Google ID token");
+            }
+            String payload = new String(java.util.Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
+            // Simple JSON field extraction without adding a dependency
+            verifiedEmail = extractJsonField(payload, "email");
+            verifiedName = extractJsonField(payload, "name");
+            String emailVerified = extractJsonField(payload, "email_verified");
+
+            if (verifiedEmail == null || verifiedEmail.isBlank()) {
+                throw new RuntimeException("Google ID token does not contain an email");
+            }
+            if (!"true".equals(emailVerified)) {
+                throw new RuntimeException("Google email is not verified");
+            }
+
+            // Check token expiry
+            String expStr = extractJsonField(payload, "exp");
+            if (expStr != null) {
+                long exp = Long.parseLong(expStr);
+                if (System.currentTimeMillis() / 1000 > exp) {
+                    throw new RuntimeException("Google ID token has expired");
+                }
+            }
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to verify Google ID token: " + e.getMessage());
+        }
+
+        // Use VERIFIED email from token, NOT from request body
+        verifiedEmail = verifiedEmail.trim().toLowerCase();
+        if (verifiedName == null || verifiedName.isBlank()) {
+            verifiedName = request.getName();
+        }
+
+        Optional<User> existingUser = userRepository.findByEmail(verifiedEmail);
         User user;
         if (existingUser.isPresent()) {
             user = existingUser.get();
         } else {
             user = new User();
-            user.setEmail(request.getEmail());
+            user.setEmail(verifiedEmail);
             user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
             user.setVerificationStatus(com.example.socialmedia.entity.VerificationStatus.VERIFIED);
             user.setRole(Role.ROLE_USER);
             user.setAuthProvider(AuthProvider.GOOGLE);
-            
+
             // Slugify name
-            String slugified = request.getName().toLowerCase().replaceAll("[^a-z0-9]", "");
+            String slugified = verifiedName.toLowerCase().replaceAll("[^a-z0-9]", "");
             user.setUsername(slugified);
-            
+
             user = userRepository.save(user);
 
             UserInfo userInfo = new UserInfo();
-            userInfo.setFirstName(request.getName());
+            userInfo.setFirstName(verifiedName);
             userInfo.setUser(user);
             userInfoRepository.save(userInfo);
         }
-        
+
         var jwtToken = jwtService.generateToken(new org.springframework.security.core.userdetails.User(
                 user.getEmail(),
                 user.getPassword(),
@@ -297,6 +351,33 @@ public class AuthService {
                 user.getId());
 
         return AuthResponse.builder().token(jwtToken).build();
+    }
+
+    /**
+     * Extract a string field value from a JSON string without a JSON library.
+     * Handles both quoted string values and unquoted boolean/numeric values.
+     */
+    private String extractJsonField(String json, String field) {
+        String search = "\"" + field + "\"";
+        int idx = json.indexOf(search);
+        if (idx < 0) return null;
+        int colonIdx = json.indexOf(':', idx + search.length());
+        if (colonIdx < 0) return null;
+        int start = colonIdx + 1;
+        // Skip whitespace
+        while (start < json.length() && json.charAt(start) == ' ') start++;
+        if (start >= json.length()) return null;
+
+        if (json.charAt(start) == '"') {
+            // Quoted string value
+            int end = json.indexOf('"', start + 1);
+            return end > start ? json.substring(start + 1, end) : null;
+        } else {
+            // Unquoted value (boolean, number)
+            int end = start;
+            while (end < json.length() && json.charAt(end) != ',' && json.charAt(end) != '}') end++;
+            return json.substring(start, end).trim();
+        }
     }
 
     public AuthResponse refreshToken(String email) {

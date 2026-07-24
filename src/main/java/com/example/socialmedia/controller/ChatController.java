@@ -45,10 +45,13 @@ public class ChatController {
     }
 
     @MessageMapping("/chat.typing")
-    public void typingIndicator(@Payload TypingRequest request) {
+    public void typingIndicator(@Payload TypingRequest request, Authentication authentication) {
+        if (authentication == null) {
+            throw new RuntimeException("Authentication required for typing indicator");
+        }
         ChatMessageDTO dto = new ChatMessageDTO();
-        dto.setSenderId(request.getSenderId());
-        dto.setSenderName(request.getSenderName());
+        // SECURITY: Use authenticated identity, NOT client-supplied values
+        dto.setSenderName(authentication.getName());
         dto.setType("typing");
         messagingTemplate.convertAndSend("/queue/typing-" + request.getReceiverId(), dto);
     }

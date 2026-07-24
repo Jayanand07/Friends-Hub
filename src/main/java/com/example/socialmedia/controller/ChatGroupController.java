@@ -34,7 +34,11 @@ public class ChatGroupController {
     @MessageMapping("/chat.group.send/{groupId}")
     public void sendGroupMessage(@DestinationVariable Long groupId, @Payload GroupMessageRequest request,
             Authentication authentication) {
-        String senderEmail = authentication != null ? authentication.getName() : request.getSenderEmail();
+        if (authentication == null) {
+            throw new RuntimeException("Authentication required for group messages");
+        }
+        // SECURITY: Always use authenticated identity, never client-supplied email
+        String senderEmail = authentication.getName();
 
         ChatGroupMessageDTO message = groupService.sendGroupMessage(
                 groupId, request.getContent(), request.getImageUrl(), request.getIv(), senderEmail);
