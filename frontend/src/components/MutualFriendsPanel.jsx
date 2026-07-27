@@ -101,13 +101,11 @@ export default function MutualFriendsPanel({ targetUserId }) {
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-[13px] font-semibold text-[var(--text-primary)] truncate group-hover/row:underline">
-                                                    {u.name || u.email?.split('@')[0]}
+                                                    {u.name || 'User'}
                                                 </p>
-                                                {u.email && (
-                                                    <p className="text-[11px] text-[var(--text-muted)] truncate">
-                                                        @{u.email.split('@')[0]}
-                                                    </p>
-                                                )}
+                                                <p className="text-[11px] text-[var(--text-muted)] truncate">
+                                                    Mutual connection
+                                                </p>
                                             </div>
                                         </Link>
                                     </motion.div>

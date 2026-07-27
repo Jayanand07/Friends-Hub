@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import NotificationBell from './NotificationBell';
 import { useTheme } from '../context/ThemeContext';
 
-export default function Navbar({ newNotification }) {
+export default function Navbar({ pendingNotifications }) {
     const { user, logout } = useAuth();
     const { isDarkMode, toggleTheme } = useTheme();
     const navigate = useNavigate();
@@ -83,7 +83,7 @@ export default function Navbar({ newNotification }) {
                             {isDarkMode ? <Sun size={20} className="text-[#fdcb6e]" /> : <Moon size={20} className="text-[var(--accent)]" />}
                         </button>
                         
-                        <NotificationBell newNotification={newNotification} />
+                        <NotificationBell pendingNotifications={pendingNotifications} />
 
                         {/* Avatar Dropdown */}
                         <div className="relative" ref={dropdownRef}>
@@ -102,7 +102,7 @@ export default function Navbar({ newNotification }) {
                                         exit={{ opacity: 0, y: 8, scale: 0.95 }}
                                         className="absolute right-0 mt-2 bg-[var(--bg-elevated)] border border-[var(--border-color)] rounded-xl p-1 min-w-[200px] z-50 shadow-xl"
                                     >
-                                        <p className="px-3 py-2 text-[11px] text-[var(--text-muted)] truncate border-b border-[var(--border-color)] mb-1">@{user?.email?.split('@')[0]}</p>
+                                        <p className="px-3 py-2 text-[11px] text-[var(--text-muted)] truncate border-b border-[var(--border-color)] mb-1">{user?.email ? 'Signed in' : ''}</p>
                                         <NavLink
                                             to="/profile"
                                             onClick={() => setDropdownOpen(false)}

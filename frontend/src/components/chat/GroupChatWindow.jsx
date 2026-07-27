@@ -9,6 +9,7 @@ import { useToast } from '../Toast';
 import GroupMembersModal from './GroupMembersModal';
 import { stompClient } from '../../socket/chatSocket';
 import { getPublicKeyForUser, decryptMessage, encryptGroupMessage, decryptGroupMessage } from '../../crypto/e2ee';
+import { isAllowedImageType } from '../../utils/sanitize';
 
 export default function GroupChatWindow({ group, currentUser, onBack, refreshGroups, isSocketConnected }) {
     const [messages, setMessages] = useState([]);
@@ -55,12 +56,14 @@ export default function GroupChatWindow({ group, currentUser, onBack, refreshGro
         })();
     }, [group?.groupId, group?.groupKeys, group?.createdById, currentUser]);
 
-    // Load messages
+    // Load messages — with race condition guard
     useEffect(() => {
         if (!group) return;
+        let cancelled = false;
         setLoading(true);
         getGroupMessages(group.groupId)
             .then(async (res) => {
+                if (cancelled) return;
                 const raw = Array.isArray(res.data) ? res.data : [];
 
                 // Attempt key recovery if state not updated yet
@@ -92,10 +95,14 @@ export default function GroupChatWindow({ group, currentUser, onBack, refreshGro
                         return msg;
                     })
                 );
-                setMessages(decryptedArray);
+                if (!cancelled) {
+                    setMessages(decryptedArray);
+                }
             })
-            .catch(() => toast.error("Failed to load messages"))
-            .finally(() => setLoading(false));
+            .catch(() => { if (!cancelled) toast.error("Failed to load messages"); })
+            .finally(() => { if (!cancelled) setLoading(false); });
+
+        return () => { cancelled = true; };
     }, [group?.groupId, groupKeyB64, currentUser]);
 
     // WebSocket Subscription
@@ -157,8 +164,7 @@ export default function GroupChatWindow({ group, currentUser, onBack, refreshGro
             const payload = {
                 content: ciphertext,
                 iv: iv,
-                imageUrl: imageUrl,
-                senderEmail: currentUser.email
+                imageUrl: imageUrl
             };
 
             if (imageUrl || !isSocketConnected || !stompClient || !stompClient.connected) {
@@ -192,6 +198,14 @@ export default function GroupChatWindow({ group, currentUser, onBack, refreshGro
     const handleImageSelect = (e) => {
         const file = e.target.files[0];
         if (file) {
+            if (file.size > 5 * 1024 * 1024) {
+                toast.error("Image must be under 5MB");
+                return;
+            }
+            if (!isAllowedImageType(file.type)) {
+                toast.error("Only JPEG, PNG, GIF, and WebP images are allowed");
+                return;
+            }
             setImageFile(file);
             const reader = new FileReader();
             reader.onloadend = () => setImagePreview(reader.result);

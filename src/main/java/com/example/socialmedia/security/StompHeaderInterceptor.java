@@ -15,6 +15,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class StompHeaderInterceptor implements ChannelInterceptor {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(StompHeaderInterceptor.class);
+
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
 
@@ -63,8 +65,14 @@ public class StompHeaderInterceptor implements ChannelInterceptor {
             String jwt = authHeader.substring(7);
             String userEmail = jwtService.extractUsername(jwt);
 
-            if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            if (userEmail != null) {
                 try {
+                    // Reject blacklisted tokens at the STOMP level
+                    if (jwtService.isTokenBlacklisted(jwt)) {
+                        log.warn("WebSocket connection rejected: token is blacklisted for user {}", maskEmail(userEmail));
+                        throw new org.springframework.messaging.MessageDeliveryException("Token has been revoked");
+                    }
+
                     UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
 
                     if (jwtService.isTokenValid(jwt, userDetails)) {
@@ -72,13 +80,32 @@ public class StompHeaderInterceptor implements ChannelInterceptor {
                                 userDetails, null, userDetails.getAuthorities());
                         accessor.setUser(authToken);
                         SecurityContextHolder.getContext().setAuthentication(authToken);
+                    } else {
+                        log.warn("WebSocket auth failed: invalid or expired token for user {}", maskEmail(userEmail));
+                        throw new org.springframework.messaging.MessageDeliveryException("Invalid or expired token");
                     }
+                } catch (org.springframework.messaging.MessageDeliveryException e) {
+                    throw e;
                 } catch (Exception e) {
-                    // Log auth failure but don't crash - will be handled as unauthenticated
-                    org.slf4j.LoggerFactory.getLogger(this.getClass())
-                            .warn("WebSocket authentication failed: {}", e.getMessage());
+                    log.warn("WebSocket authentication failed: {}", e.getMessage());
+                    throw new org.springframework.messaging.MessageDeliveryException("Authentication failed: " + e.getMessage());
                 }
+            } else {
+                throw new org.springframework.messaging.MessageDeliveryException("Invalid token: no subject");
+            }
+        } else {
+            // CONNECT without Bearer token — reject
+            if (StompCommand.CONNECT.equals(accessor.getCommand())) {
+                throw new org.springframework.messaging.MessageDeliveryException("Missing or invalid Authorization header");
             }
         }
+    }
+
+    /** Mask email for logging: e.g. "user@example.com" -> "u*****@example.com" */
+    private static String maskEmail(String email) {
+        if (email == null || email.isBlank()) return email;
+        int atIdx = email.indexOf('@');
+        if (atIdx <= 1) return email;
+        return email.charAt(0) + "*****" + email.substring(atIdx);
     }
 }

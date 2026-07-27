@@ -6,26 +6,7 @@ import { toggleLike, toggleSavePost, deletePost } from '../api/posts';
 import { useToast } from './Toast';
 import CommentSection from './CommentSection';
 import EmojiReactionPicker from './EmojiReactionPicker';
-
-function timeAgo(dateStr) {
-    if (!dateStr) return '';
-    let str = String(dateStr).trim();
-    if (str.includes('T') && !str.endsWith('Z') && !str.includes('+') && !/-\d{2}:\d{2}$/.test(str)) {
-        str += 'Z';
-    }
-    const date = new Date(str);
-    if (isNaN(date.getTime())) return '';
-    const diff = Math.max(0, Date.now() - date.getTime());
-    const secs = Math.floor(diff / 1000);
-    if (secs < 60) return 'Just now';
-    const mins = Math.floor(secs / 60);
-    if (mins < 60) return `${mins}m`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h`;
-    const days = Math.floor(hours / 24);
-    if (days < 7) return `${days}d`;
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
+import timeAgo from '../utils/timeAgo';
 
 export default function PostCard({ post, currentEmail, currentUserId, onDelete, onLikeToggle }) {
     const toast = useToast();
@@ -34,10 +15,11 @@ export default function PostCard({ post, currentEmail, currentUserId, onDelete, 
     const [likeCount, setLikeCount] = useState(post.likeCount || post.likesCount || 0);
     const [commentCount, setCommentCount] = useState(post.commentCount || post.commentsCount || 0);
     const [showComments, setShowComments] = useState(false);
-    const [showOptions, setShowOptions] = useState(false);
+    const [showMenu, setShowMenu] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [showFloatHeart, setShowFloatHeart] = useState(false);
     const [heartBurst, setHeartBurst] = useState(false);
+    const [imageFailed, setImageFailed] = useState(false);
     const lastTap = useRef(0);
 
     // Synchronize local liked/likeCount/saved with incoming post prop updates
@@ -155,7 +137,7 @@ export default function PostCard({ post, currentEmail, currentUserId, onDelete, 
                 </Link>
                 {isOwner && (
                     <div className="relative">
-                        <button onClick={() => setShowMenu(!showMenu)} className="btn-icon w-8 h-8">
+                        <button onClick={() => setShowMenu(!showMenu)} className="btn-icon w-8 h-8" aria-label="Post menu">
                             <MoreHorizontal size={18} className="text-[var(--text-secondary)]" />
                         </button>
                         <AnimatePresence>
@@ -191,13 +173,13 @@ export default function PostCard({ post, currentEmail, currentUserId, onDelete, 
             )}
 
             {/* Image — edge-to-edge like Instagram */}
-            {post.imageUrl && (
+            {post.imageUrl && !imageFailed && (
                 <div className="relative" onClick={handleDoubleTap}>
                     <img
                         src={post.imageUrl}
                         alt="Post"
                         className="w-full object-cover max-h-[520px]"
-                        onError={(e) => { e.target.parentElement.style.display = 'none'; }}
+                        onError={() => setImageFailed(true)}
                     />
                     {/* Double-tap heart animation */}
                     <AnimatePresence>
@@ -223,6 +205,7 @@ export default function PostCard({ post, currentEmail, currentUserId, onDelete, 
                         whileTap={{ scale: 0.75 }}
                         onClick={handleLike}
                         className="p-1 cursor-pointer"
+                        aria-label={liked ? 'Unlike' : 'Like'}
                     >
                         <Heart
                             size={24}
@@ -230,15 +213,15 @@ export default function PostCard({ post, currentEmail, currentUserId, onDelete, 
                             className={`transition-colors ${liked ? 'text-[var(--danger)]' : 'text-[var(--text-primary)] hover:text-[var(--text-muted)]'} ${heartBurst ? 'heart-burst' : ''}`}
                         />
                     </motion.button>
-                    <button onClick={() => setShowComments(!showComments)} className="p-1 cursor-pointer">
+                    <button onClick={() => setShowComments(!showComments)} className="p-1 cursor-pointer" aria-label={showComments ? 'Close comments' : 'Open comments'}>
                         <MessageCircle size={24} className={`transition-colors ${showComments ? 'text-[var(--accent)]' : 'text-[var(--text-primary)] hover:text-[var(--text-muted)]'}`} />
                     </button>
-                    <button onClick={handleShare} className="p-1 cursor-pointer">
+                    <button onClick={handleShare} className="p-1 cursor-pointer" aria-label="Share post">
                         <Send size={22} className="text-[var(--text-primary)] hover:text-[var(--text-muted)] transition-colors -rotate-12" />
                     </button>
                     <EmojiReactionPicker targetType="POST" targetId={post.id} />
                 </div>
-                <button onClick={handleSave} className="p-1 cursor-pointer">
+                <button onClick={handleSave} className="p-1 cursor-pointer" aria-label={saved ? 'Unsave post' : 'Save post'}>
                     <Bookmark
                         size={24}
                         fill={saved ? 'currentColor' : 'none'}

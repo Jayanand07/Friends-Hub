@@ -10,6 +10,8 @@ import java.util.Optional;
 public interface BlockRepository extends JpaRepository<Block, Long> {
     boolean existsByBlockerAndBlocked(User blocker, User blocked);
 
+    boolean existsByBlockerIdAndBlockedId(Long blockerId, Long blockedId);
+
     List<Block> findByBlockerId(Long blockerId);
 
     Optional<Block> findByBlockerAndBlocked(User blocker, User blocked);

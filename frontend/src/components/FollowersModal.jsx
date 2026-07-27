@@ -90,10 +90,9 @@ function UserRow({ user: u, delay, onUserClick, defaultFollowing }) {
             <div className="flex-1 min-w-0">
                 <Link to={`/profile/${targetId}`} onClick={() => { if (onUserClick) onUserClick(); }}>
                     <p className="text-[13px] font-medium text-[var(--text-primary)] truncate hover:underline">
-                        {u.name || (u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : u.email)}
+                        {u.name || (u.firstName && u.lastName ? `${u.firstName} ${u.lastName}` : 'Unknown')}
                     </p>
                 </Link>
-                {u.email && <p className="text-[11px] text-[var(--text-muted)] truncate">@{u.email.split('@')[0]}</p>}
             </div>
             <motion.button
                 whileHover={{ scale: 1.05 }}

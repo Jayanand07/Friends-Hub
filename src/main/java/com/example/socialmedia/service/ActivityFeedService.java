@@ -5,6 +5,7 @@ import com.example.socialmedia.entity.Follow;
 import com.example.socialmedia.entity.Post;
 import com.example.socialmedia.entity.User;
 import com.example.socialmedia.entity.UserInfo;
+import com.example.socialmedia.repository.BlockRepository;
 import com.example.socialmedia.repository.FollowRepository;
 import com.example.socialmedia.repository.PostRepository;
 import com.example.socialmedia.repository.UserRepository;
@@ -29,13 +30,16 @@ public class ActivityFeedService {
     private final UserRepository userRepository;
     private final FollowRepository followRepository;
     private final PostRepository postRepository;
+    private final BlockRepository blockRepository;
 
     public ActivityFeedService(UserRepository userRepository,
                                FollowRepository followRepository,
-                               PostRepository postRepository) {
+                               PostRepository postRepository,
+                               BlockRepository blockRepository) {
         this.userRepository = userRepository;
         this.followRepository = followRepository;
         this.postRepository = postRepository;
+        this.blockRepository = blockRepository;
     }
 
     @Transactional(readOnly = true)
@@ -59,7 +63,10 @@ public class ActivityFeedService {
         List<ActivityFeedItem> items = new ArrayList<>();
 
         for (Post p : posts) {
-            if (p.getUser().isPrivateAccount()) continue; // skip private posts
+            // Post author is already guaranteed to be someone the viewer follows
+            // (queried via followingIds). The privateAccount check is intentionally
+            // omitted here because the viewer already follows this user, so they
+            // are authorized to see their posts.
             items.add(ActivityFeedItem.forPost(
                     p.getUser().getId(),
                     displayName(p.getUser()),
@@ -73,16 +80,26 @@ public class ActivityFeedService {
         }
 
         // ── New-friend events (followings who followed someone new) ──
-        for (Follow myFollow : myFollows) {
-            User friend = myFollow.getFollowing();
-            List<Follow> friendFollows = followRepository.findByFollowerId(friend.getId());
-            for (Follow ff : friendFollows) {
+        // M-5: Batch fetch all friend-of-friend follows in a single query
+        List<Long> friendIds = myFollows.stream()
+                .map(f -> f.getFollowing().getId())
+                .collect(Collectors.toList());
+
+        // H-8: Filter out blocked relationships before fetching
+        List<Long> allowedFriendIds = friendIds.stream()
+                .filter(fid -> !blockRepository.existsByBlockerIdAndBlockedId(me.getId(), fid)
+                        && !blockRepository.existsByBlockerIdAndBlockedId(fid, me.getId()))
+                .collect(Collectors.toList());
+
+        if (!allowedFriendIds.isEmpty()) {
+            List<Follow> allFriendFollows = followRepository.findByFollowerIdIn(allowedFriendIds);
+            for (Follow ff : allFriendFollows) {
                 if (ff.getCreatedAt() != null && ff.getCreatedAt().isAfter(since)
                         && !ff.getFollowing().getId().equals(me.getId())) {
                     items.add(ActivityFeedItem.forNewFriend(
-                            friend.getId(),
-                            displayName(friend),
-                            picUrl(friend),
+                            ff.getFollower().getId(),
+                            displayName(ff.getFollower()),
+                            picUrl(ff.getFollower()),
                             ff.getFollowing().getId(),
                             displayName(ff.getFollowing()),
                             picUrl(ff.getFollowing()),
@@ -108,7 +125,7 @@ public class ActivityFeedService {
                     + (info.getLastName() != null ? info.getLastName() : "")).trim();
             if (!name.isBlank()) return name;
         }
-        return u.getEmail().split("@")[0];
+        return "User#" + u.getId();
     }
 
     private String picUrl(User u) {

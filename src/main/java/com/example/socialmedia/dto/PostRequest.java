@@ -1,10 +1,14 @@
 package com.example.socialmedia.dto;
 
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 public class PostRequest {
     @Size(max = 5000, message = "Post content cannot exceed 5000 characters")
     private String content;
+
+    @Pattern(regexp = "^(https?://.*)?$", message = "Image URL must be a valid http/https URL")
+    @Size(max = 2048, message = "Image URL cannot exceed 2048 characters")
     private String imageUrl;
 
     public PostRequest() {

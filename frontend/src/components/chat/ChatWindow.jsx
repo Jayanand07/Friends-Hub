@@ -9,6 +9,7 @@ import { sendChatMessage, sendTypingIndicator, isConnected } from '../../socket/
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../Toast';
 import { getPublicKeyForUser, encryptMessage, decryptMessage } from '../../crypto/e2ee';
+import { isAllowedImageType } from '../../utils/sanitize';
 
 export default function ChatWindow({
     selectedUser,
@@ -32,13 +33,15 @@ export default function ChatWindow({
     const fileRef = useRef(null);
     const toast = useToast();
 
-    // Fetch history when user changes
+    // Fetch history when user changes — with race condition guard
     useEffect(() => {
         if (!selectedUser?.id) return;
+        let cancelled = false;
 
         setLoading(true);
         getMessages(selectedUser.id)
             .then(async (res) => {
+                if (cancelled) return;
                 const raw = Array.isArray(res.data) ? res.data : [];
                 const peerPublicKey = await getPublicKeyForUser(selectedUser.id);
                 const decryptedArray = await Promise.all(
@@ -58,14 +61,22 @@ export default function ChatWindow({
                         }
                     })
                 );
-                setMessages(decryptedArray);
+                if (!cancelled) {
+                    setMessages(decryptedArray);
+                }
             })
             .catch(() => {
-                toast.error("Failed to load chat history");
+                if (!cancelled) {
+                    toast.error("Failed to load chat history");
+                }
             })
             .finally(() => {
-                setLoading(false);
+                if (!cancelled) {
+                    setLoading(false);
+                }
             });
+
+        return () => { cancelled = true; };
     }, [selectedUser?.id, setMessages, currentUser?.id, currentUserId]);
 
     // Scroll to bottom
@@ -117,7 +128,7 @@ export default function ChatWindow({
                     return [...prev, optimisticMsg];
                 });
             } else {
-                sendChatMessage(selectedUser.id, ciphertext, iv, currentUser?.email, imageUrl);
+                sendChatMessage(selectedUser.id, ciphertext, iv, imageUrl);
             }
 
             setText('');
@@ -142,6 +153,10 @@ export default function ChatWindow({
         if (file) {
             if (file.size > 5 * 1024 * 1024) {
                 toast.error("Image must be under 5MB");
+                return;
+            }
+            if (!isAllowedImageType(file.type)) {
+                toast.error("Only JPEG, PNG, GIF, and WebP images are allowed");
                 return;
             }
             setImageFile(file);
@@ -175,7 +190,7 @@ export default function ChatWindow({
                     <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[var(--gradient-1)] to-[var(--gradient-2)] p-[1.5px]">
                         <div className="w-full h-full rounded-full bg-[var(--bg-card)] overflow-hidden flex items-center justify-center">
                             {selectedUser.profilePicUrl ? (
-                                <img src={selectedUser.profilePicUrl} className="w-full h-full object-cover" />
+                                <img src={selectedUser.profilePicUrl} alt={selectedUser.name} className="w-full h-full object-cover" />
                             ) : (
                                 <span className="text-sm font-bold">{selectedUser.name?.charAt(0).toUpperCase()}</span>
                             )}
@@ -212,7 +227,7 @@ export default function ChatWindow({
                             </div>
                         )}
                         {messages.map((msg, idx) => {
-                            const isMe = msg.senderId === currentUserId;
+                            const isMe = String(msg.senderId) === String(currentUserId);
                             return (
                                 <ChatBubble
                                     key={msg.id || idx}
@@ -245,7 +260,7 @@ export default function ChatWindow({
             <div className="p-4 bg-[var(--bg-card)]/80 backdrop-blur-md border-t border-[var(--border-color)]">
                 {imagePreview && (
                     <div className="relative w-20 h-20 mb-3 rounded-xl overflow-hidden group border border-[var(--border-color)] shadow-lg shadow-black/20">
-                        <img src={imagePreview} className="w-full h-full object-cover" />
+                        <img src={imagePreview} alt="Image preview" className="w-full h-full object-cover" />
                         <button
                             onClick={() => { setImageFile(null); setImagePreview(''); }}
                             className="absolute top-1 right-1 bg-black/60 p-1 rounded-full text-white hover:bg-red-500 transition-colors"

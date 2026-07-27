@@ -19,7 +19,8 @@ export const getSavedPosts = (page = 0, size = 10) =>
 
 export const addComment = (postId, data) => api.post(`/posts/${postId}/comment`, data);
 
-export const getComments = (postId) => api.get(`/posts/${postId}/comments`);
+export const getComments = (postId, page = 0, size = 10) =>
+    api.get(`/posts/${postId}/comments?page=${page}&size=${size}&sort=createdAt,desc`);
 
 export const deleteComment = (commentId) => api.delete(`/comments/${commentId}`);
 

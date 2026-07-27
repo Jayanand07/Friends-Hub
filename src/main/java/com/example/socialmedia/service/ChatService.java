@@ -11,7 +11,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -46,7 +45,7 @@ public class ChatService {
     }
 
     public Set<Long> getOnlineUsers() {
-        return Collections.emptySet();
+        return presenceService.getAllOnlineUserIds();
     }
 
     public boolean isOnline(Long userId) {
@@ -93,7 +92,7 @@ public class ChatService {
             throw new RuntimeException("Conversation not available");
         }
 
-        return chatRepo.findConversation(currentUser, otherUser)
+        return chatRepo.findConversation(currentUser, otherUser, PageRequest.of(0, 100))
                 .stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
@@ -137,6 +136,8 @@ public class ChatService {
 
         return chatRepo.findChatPartners(user)
                 .stream()
+                .filter(partner -> !blockRepo.existsByBlockerAndBlocked(user, partner)
+                        && !blockRepo.existsByBlockerAndBlocked(partner, user))
                 .map(partner -> {
                     String name = getDisplayName(partner);
                     return new ChatPartnerDTO(partner.getId(), name, isOnline(partner.getId()));
@@ -161,7 +162,7 @@ public class ChatService {
         if (info != null && info.getFirstName() != null && !info.getFirstName().isEmpty()) {
             return info.getFirstName() + (info.getLastName() != null ? " " + info.getLastName() : "");
         }
-        return user.getEmail().split("@")[0];
+        return "User#" + user.getId();
     }
 
     private ChatMessageDTO toDTO(ChatMessage msg) {

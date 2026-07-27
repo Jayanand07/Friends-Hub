@@ -1,8 +1,16 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api',
+  baseURL: import.meta.env.VITE_API_URL,
   timeout: 15000,
+});
+
+// Track online/offline status
+window.addEventListener('offline', () => {
+  window.dispatchEvent(new CustomEvent('app:offline'));
+});
+window.addEventListener('online', () => {
+  window.dispatchEvent(new CustomEvent('app:online'));
 });
 
 api.interceptors.request.use(
@@ -34,6 +42,19 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
+    // Retry logic for transient failures (network error or 5xx) — max 1 retry
+    if (!originalRequest._retryCount && !error.response?.status && !originalRequest._retry) {
+      originalRequest._retryCount = 1;
+      // Wait a short beat before retrying
+      await new Promise(res => setTimeout(res, 1000));
+      return api(originalRequest);
+    }
+    if (originalRequest._retryCount > 0 && !originalRequest._retry && error.response?.status && error.response.status >= 500 && error.response.status < 600) {
+      originalRequest._retryCount--;
+      await new Promise(res => setTimeout(res, 1000));
+      return api(originalRequest);
+    }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {

@@ -339,7 +339,8 @@
     background: radial-gradient(circle, rgba(0, 149, 246, 0.04), transparent 70%);
     top: 50%;
     left: 50%;
-    transform: translate(-50%, -50%);
+    margin-top: -125px;
+    margin-left: -125px;
     animation-delay: -14s;
   }
 
@@ -415,10 +416,10 @@
     left: 0;
     right: 0;
     z-index: 50;
-    background: rgba(0, 0, 0, 0.95);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-top: 1px solid var(--border-color);
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px) saturate(130%);
+    -webkit-backdrop-filter: blur(20px) saturate(130%);
+    border-top: 1px solid var(--glass-border);
     padding: 0.5rem 0;
     padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
   }
@@ -450,5 +451,48 @@
     height: 1px;
     background: var(--border-color);
     width: 100%;
+  }
+}
+
+/* Print styles — hide interactive elements, use dark text on white */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+  }
+
+  .bottom-nav,
+  .sidebar,
+  nav,
+  .btn-primary,
+  .btn-ghost,
+  .btn-icon,
+  .orb,
+  [role="button"],
+  button,
+  input,
+  textarea,
+  select {
+    display: none !important;
+  }
+
+  .card,
+  .glass,
+  .glass-strong {
+    border: 1px solid #ddd !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  a {
+    color: #000000 !important;
+    text-decoration: underline !important;
+  }
+
+  @page {
+    margin: 1.5cm;
   }
 }

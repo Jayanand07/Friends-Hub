@@ -93,11 +93,8 @@ public class PostService {
 
                 externalApiService.notifyPostCreated(savedPost);
 
-                // Send Kafka event for async processing
-                // SECURITY: Use "POST" type instead of "LIKE" to avoid creating a
-                // bogus self-notification for the post author.
-                sendNotificationEvent(post.getUser().getId(), "POST", "POST",
-                        user.getId(), savedPost.getId(), "Post created");
+                // Self-notification removed: notifying the post author about their own post
+                // is unnecessary and the "POST" event type is not a valid enum value.
 
                 return mapToPostResponse(savedPost, userEmail);
         }
@@ -305,6 +302,10 @@ public class PostService {
                         throw new RuntimeException("Unauthorized");
                 }
 
+                // Remove FK references before deleting the post
+                savedPostRepository.deleteByPostId(postId);
+                commentRepository.deleteByPostId(postId);
+                likeRepository.deleteByPostId(postId);
                 postRepository.delete(post);
         }
 
@@ -338,7 +339,9 @@ public class PostService {
                 Comment comment = commentRepository.findById(commentId)
                                 .orElseThrow(() -> new RuntimeException("Comment not found"));
 
-                if (!comment.getUser().getEmail().equals(email)) {
+                if (!comment.getUser().getEmail().equals(email)
+                        && !comment.getPost().getUser().getEmail().equals(email)
+                        && !isAdmin(email)) {
                         throw new RuntimeException("You can only delete your own comments");
                 }
 
@@ -347,7 +350,8 @@ public class PostService {
 
         private boolean isAdmin(String email) {
                 return userRepository.findByEmail(email)
-                                .map(user -> user.getRole() == Role.ROLE_ADMIN)
+                                .map(user -> user.getRole() == Role.ROLE_ADMIN
+                                          || user.getRole() == Role.ROLE_SUPER_ADMIN)
                                 .orElse(false);
         }
 
@@ -357,7 +361,7 @@ public class PostService {
                                         (user.getUserInfo().getLastName() != null ? user.getUserInfo().getLastName()
                                                         : "");
                 }
-                return user.getEmail().split("@")[0];
+                return "User#" + user.getId();
         }
 
         private Page<PostResponse> mapToPostResponsePage(Page<Post> page, String currentUserEmail) {
@@ -414,8 +418,8 @@ public class PostService {
                                         .imageUrl(post.getImageUrl())
                                         .authorName(authorName)
                                         .authorId(post.getUser() != null ? post.getUser().getId() : null)
-                                        .likeCount((int) likeCount)
-                                        .commentCount((int) commentCount)
+                                        .likeCount(likeCount)
+                                        .commentCount(commentCount)
                                         .createdAt(post.getCreatedAt())
                                         .isLiked(isLiked)
                                         .isSaved(isSaved)
@@ -436,8 +440,8 @@ public class PostService {
                                 .imageUrl(post.getImageUrl())
                                 .authorName(post.getUser() != null ? getDisplayName(post.getUser()) : "Unknown")
                                 .authorId(post.getUser().getId())
-                                .likeCount(post.getLikes() != null ? post.getLikes().size() : 0)
-                                .commentCount(post.getComments() != null ? post.getComments().size() : 0)
+                                .likeCount(likeRepository.countByPostId(post.getId()))
+                                .commentCount(commentRepository.countByPostId(post.getId()))
                                 .createdAt(post.getCreatedAt())
                                 .isLiked(isLiked)
                                 .isSaved(isSaved)

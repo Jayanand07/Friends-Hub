@@ -3,11 +3,16 @@ package com.example.socialmedia.controller;
 import com.example.socialmedia.config.WebSocketEventListener;
 import com.example.socialmedia.dto.ChatMessageDTO;
 import com.example.socialmedia.service.ChatService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.Authentication;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -16,6 +21,7 @@ import java.util.Set;
 
 @RestController
 @RequestMapping("/api/chat")
+@Validated
 public class ChatController {
 
     private final ChatService chatService;
@@ -52,9 +58,19 @@ public class ChatController {
         if (authentication == null) {
             throw new RuntimeException("Authentication required for typing indicator");
         }
+        // M-2: Load user from DB to use their display name instead of leaking the email
+        com.example.socialmedia.entity.User user = userRepo.findByEmail(authentication.getName())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        String displayName = user.getUserInfo() != null
+                && user.getUserInfo().getFirstName() != null
+                && !user.getUserInfo().getFirstName().isEmpty()
+            ? (user.getUserInfo().getFirstName()
+                + (user.getUserInfo().getLastName() != null ? " " + user.getUserInfo().getLastName() : ""))
+            : authentication.getName().split("@")[0];
+
         ChatMessageDTO dto = new ChatMessageDTO();
         // SECURITY: Use authenticated identity, NOT client-supplied values
-        dto.setSenderName(authentication.getName());
+        dto.setSenderName(displayName);
         dto.setType("typing");
         messagingTemplate.convertAndSend("/queue/typing-" + request.getReceiverId(), dto);
     }
@@ -96,13 +112,14 @@ public class ChatController {
 
     @GetMapping("/users/search")
     public ResponseEntity<List<ChatService.ChatPartnerDTO>> searchUsers(
-            @RequestParam String query, Authentication authentication) {
+            @RequestParam @Size(max = 200, message = "Search query cannot exceed 200 characters") String query,
+            Authentication authentication) {
         return ResponseEntity.ok(chatService.searchUsers(query, authentication.getName()));
     }
 
     @PostMapping("/send")
     public ResponseEntity<ChatMessageDTO> sendMessageRest(
-            @RequestBody ChatSendRequest request, Authentication authentication) {
+            @Valid @RequestBody ChatSendRequest request, Authentication authentication) {
         ChatMessageDTO message = chatService.sendMessage(authentication.getName(),
                 request.getReceiverId(), request.getContent(), request.getImageUrl(), request.getIv());
         messagingTemplate.convertAndSend("/queue/messages-" + request.getReceiverId(), message);
@@ -143,10 +160,16 @@ public class ChatController {
     // ===== Request payloads =====
 
     public static class ChatSendRequest {
+        @NotNull(message = "Receiver ID is required")
         private Long receiverId;
+        @Size(max = 5000, message = "Message content cannot exceed 5000 characters")
         private String content;
-        private String senderEmail;
+        // senderEmail field intentionally removed: sender identity is always sourced
+        // from the server-side JWT (Authentication.getName()), never from client input.
+        @Pattern(regexp = "^(https?://.*)?$", message = "Image URL must be a valid http/https URL")
+        @Size(max = 2048, message = "Image URL cannot exceed 2048 characters")
         private String imageUrl;
+        @Size(max = 500, message = "IV cannot exceed 500 characters")
         private String iv;
 
         public Long getReceiverId() {
@@ -163,14 +186,6 @@ public class ChatController {
 
         public void setContent(String content) {
             this.content = content;
-        }
-
-        public String getSenderEmail() {
-            return senderEmail;
-        }
-
-        public void setSenderEmail(String senderEmail) {
-            this.senderEmail = senderEmail;
         }
 
         public String getImageUrl() {
@@ -193,6 +208,7 @@ public class ChatController {
     public static class TypingRequest {
         private Long senderId;
         private String senderName;
+        @NotNull(message = "Receiver ID is required")
         private Long receiverId;
 
         public Long getSenderId() {

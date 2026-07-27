@@ -103,7 +103,7 @@ export default function RegisterPage() {
                         <div className="relative">
                             <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                             <input type="email" className="input-field pl-9 text-[13px]" placeholder="you@example.com" value={form.email}
-                                onChange={(e) => setForm({ ...form, email: e.target.value })} required />
+                                onChange={(e) => setForm({ ...form, email: e.target.value })} autoComplete="email" required />
                         </div>
                     </div>
 
@@ -114,6 +114,7 @@ export default function RegisterPage() {
                             <input
                                 id="register-password"
                                 type={showPassword ? 'text' : 'password'}
+                                autoComplete="new-password"
                                 className={`input-field pl-9 pr-9 text-[13px] ${passwordError ? 'border-red-500/50' : ''}`}
                                 placeholder="Min. 8 chars, 1 uppercase, 1 number"
                                 value={form.password}

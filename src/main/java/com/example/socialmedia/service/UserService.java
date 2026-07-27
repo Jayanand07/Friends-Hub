@@ -68,6 +68,13 @@ public class UserService {
         User requester = getUserByEmail(requesterEmail);
         User target = userRepository.findById(targetId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // SECURITY: Block check — prevent blocked users from viewing profile info
+        if (blockRepository.existsByBlockerAndBlocked(target, requester) ||
+                blockRepository.existsByBlockerAndBlocked(requester, target)) {
+            throw new RuntimeException("Profile not available");
+        }
+
         UserInfo info = userInfoRepository.findByUser(target).orElse(null);
         return buildProfileResponse(target, info, requester);
     }
@@ -147,6 +154,7 @@ public class UserService {
                 .canViewPosts(canViewPosts)
                 .mutualFriendCount(mutualFriendCount)
                 .role(user.getRole())
+                .city(info != null ? info.getLocation() : null)
                 .build();
     }
 
@@ -403,6 +411,7 @@ public class UserService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
     public boolean isFollowing(Long followerId, Long followingId) {
         User follower = userRepository.findById(followerId).orElse(null);
         User following = userRepository.findById(followingId).orElse(null);
@@ -429,12 +438,13 @@ public class UserService {
 
         java.util.Set<Long> friendIds = friends.stream().map(User::getId).collect(Collectors.toSet());
 
+        // Batch query: load all followings for all friends in a single query (fixes N+1)
         java.util.Map<Long, java.util.Set<Long>> mutualMap = new java.util.HashMap<>();
-        for (User friend : friends) {
-            followRepository.findByFollowerId(friend.getId()).forEach(f -> {
+        if (!friendIds.isEmpty()) {
+            followRepository.findByFollowerIdIn(new java.util.ArrayList<>(friendIds)).forEach(f -> {
                 Long mid = f.getFollowing().getId();
                 if (!mid.equals(target.getId()) && !friendIds.contains(mid)) {
-                    mutualMap.computeIfAbsent(mid, k -> new java.util.HashSet<>()).add(friend.getId());
+                    mutualMap.computeIfAbsent(mid, k -> new java.util.HashSet<>()).add(f.getFollower().getId());
                 }
             });
         }
@@ -474,11 +484,20 @@ public class UserService {
         Set<Long> myFollowingIds = followRepository.findByFollowerId(requester.getId())
                 .stream().map(f -> f.getFollowing().getId()).collect(Collectors.toSet());
 
+        // Batch query: load all followers for all search results in a single query (fixes N+1)
+        List<Long> resultIds = results.stream().map(User::getId).collect(Collectors.toList());
+        java.util.Map<Long, java.util.Set<Long>> followersOfResult = new java.util.HashMap<>();
+        if (!resultIds.isEmpty()) {
+            followRepository.findByFollowingIdIn(resultIds).forEach(f ->
+                followersOfResult.computeIfAbsent(f.getFollowing().getId(), k -> new java.util.HashSet<>())
+                    .add(f.getFollower().getId())
+            );
+        }
+
         List<SearchUserResponse> mapped = results.stream().map(u -> {
             // count mutuals: people I follow who also follow this user
-            long mutual = followRepository.findByFollowingId(u.getId()).stream()
-                    .filter(f -> myFollowingIds.contains(f.getFollower().getId()))
-                    .count();
+            long mutual = followersOfResult.getOrDefault(u.getId(), java.util.Collections.emptySet())
+                    .stream().filter(myFollowingIds::contains).count();
             boolean following = myFollowingIds.contains(u.getId());
             String name = u.getUserInfo() != null
                     ? ((u.getUserInfo().getFirstName() != null ? u.getUserInfo().getFirstName() : "") +
@@ -511,6 +530,12 @@ public class UserService {
         User requester = getUserByEmail(requesterEmail);
         User target = userRepository.findById(targetUserId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // SECURITY: Block check — prevent blocked users from seeing mutual friends
+        if (blockRepository.existsByBlockerAndBlocked(target, requester) ||
+                blockRepository.existsByBlockerAndBlocked(requester, target)) {
+            throw new RuntimeException("Action not allowed");
+        }
 
         Set<Long> myFollowingIds = followRepository.findByFollowerId(requester.getId())
                 .stream().map(f -> f.getFollowing().getId()).collect(Collectors.toSet());
@@ -640,7 +665,7 @@ public class UserService {
             return user.getUserInfo().getFirstName() + " " +
                     (user.getUserInfo().getLastName() != null ? user.getUserInfo().getLastName() : "");
         }
-        return user.getEmail().split("@")[0];
+        return "User#" + user.getId();
     }
 
     private FollowUserResponse mapToFollowUserResponse(User user) {

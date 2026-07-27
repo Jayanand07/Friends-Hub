@@ -1,12 +1,12 @@
 package com.example.socialmedia.security;
 
+import com.example.socialmedia.service.TokenBlacklistService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
@@ -15,7 +15,6 @@ import java.security.Key;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 @Service
@@ -27,10 +26,10 @@ public class JwtService {
     @Value("${jwt.expiration}")
     private long jwtExpiration;
 
-    private final RedisTemplate<String, String> redisTemplate;
+    private final TokenBlacklistService tokenBlacklistService;
 
-    public JwtService(RedisTemplate<String, String> redisTemplate) {
-        this.redisTemplate = redisTemplate;
+    public JwtService(TokenBlacklistService tokenBlacklistService) {
+        this.tokenBlacklistService = tokenBlacklistService;
     }
 
     @PostConstruct
@@ -81,37 +80,23 @@ public class JwtService {
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token) && !isTokenBlacklisted(token);
+        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token) && !tokenBlacklistService.isBlacklisted(token);
     }
 
     /**
-     * Check if a token has been blacklisted (revoked on logout).
-     * Blacklisted tokens are stored in Redis with expiration time matching token expiry.
-     */
-    public boolean isTokenBlacklisted(String token) {
-        String blacklistKey = "jwt:blacklist:" + token;
-        return Boolean.TRUE.equals(redisTemplate.hasKey(blacklistKey));
-    }
-
-    /**
-     * Add a token to the blacklist when user logs out.
-     * Store with TTL equal to token's remaining lifetime to avoid memory leak.
+     * Blacklists the token so it cannot be used for future requests.
+     * The token remains blacklisted until its original expiration time.
      */
     public void blacklistToken(String token) {
-        try {
-            long expirationTime = extractExpiration(token).getTime();
-            long now = System.currentTimeMillis();
-            long remainingTimeMs = Math.max(0, expirationTime - now);
+        Date expiry = extractExpiration(token);
+        tokenBlacklistService.blacklistToken(token, expiry);
+    }
 
-            if (remainingTimeMs > 0) {
-                String blacklistKey = "jwt:blacklist:" + token;
-                redisTemplate.opsForValue().set(blacklistKey, "revoked", remainingTimeMs, TimeUnit.MILLISECONDS);
-            }
-        } catch (Exception e) {
-            // Log but don't fail logout if blacklist operation fails
-            org.slf4j.LoggerFactory.getLogger(this.getClass())
-                    .warn("Failed to add token to blacklist: {}", e.getMessage());
-        }
+    /**
+     * Checks whether the token has been blacklisted (e.g., after logout).
+     */
+    public boolean isTokenBlacklisted(String token) {
+        return tokenBlacklistService.isBlacklisted(token);
     }
 
     private boolean isTokenExpired(String token) {

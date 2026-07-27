@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component;
  * Once all production instances have migrated, this class can be removed entirely.
  */
 @Component
-@ConditionalOnProperty(name = "app.schema-fixer.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "app.schema-fixer.enabled", havingValue = "true", matchIfMissing = false)
 public class SchemaFixer implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(SchemaFixer.class);

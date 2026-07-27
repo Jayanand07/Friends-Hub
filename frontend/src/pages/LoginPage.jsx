@@ -48,7 +48,8 @@ export default function LoginPage() {
             setIsForgotPassword(false);
             const targetEmail = resetEmail;
             setResetEmail('');
-            navigate(`/reset-password?email=${encodeURIComponent(targetEmail)}`);
+            sessionStorage.setItem('resetPasswordEmail', targetEmail);
+            navigate('/reset-password');
         } catch (err) {
             const msg = err.response?.data?.message || 'Failed to send reset link.';
             setError(msg);
@@ -99,6 +100,7 @@ export default function LoginPage() {
                                 <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                                 <input
                                     type="email"
+                                    autoComplete="email"
                                     className="input-field pl-9 text-[13px]"
                                     placeholder="you@example.com"
                                     value={resetEmail}
@@ -138,6 +140,7 @@ export default function LoginPage() {
                                 <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                                 <input
                                     type="email"
+                                    autoComplete="email"
                                     className="input-field pl-9 text-[13px]"
                                     placeholder="you@example.com"
                                     value={form.email}
@@ -163,6 +166,7 @@ export default function LoginPage() {
                                 <input
                                     id="login-password"
                                     type={showPassword ? 'text' : 'password'}
+                                    autoComplete="current-password"
                                     className="input-field pl-9 pr-9 text-[13px]"
                                     placeholder="••••••••"
                                     value={form.password}

@@ -7,11 +7,13 @@ import { connectChat, disconnectChat } from '../socket/chatSocket';
 import UserListSidebar from '../components/chat/UserListSidebar';
 import ChatWindow from '../components/chat/ChatWindow';
 import { getPublicKeyForUser, decryptMessage } from '../crypto/e2ee';
+import { useToast } from '../components/Toast';
 
 let conversationsCache = [];
 
 export default function ChatPage() {
     const { user } = useAuth();
+    const toast = useToast();
     const currentUserId = user?.id;
     const [searchParams] = useSearchParams();
     const [conversations, setConversations] = useState(conversationsCache);
@@ -42,12 +44,12 @@ export default function ChatPage() {
                     }
                 }
             })
-            .catch(() => { });
+            .catch(() => toast.error('Failed to load conversations'));
 
         // Initial online users fetch
         getOnlineUsers()
             .then((res) => setOnlineUsers(Array.isArray(res.data) ? res.data : []))
-            .catch(() => { });
+            .catch(() => toast.error('Failed to load online users'));
     }, [currentUserId]);
 
     // Connect WebSocket with all handlers

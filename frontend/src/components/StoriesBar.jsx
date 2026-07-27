@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react';
 import { getStories } from '../api/stories';
 import StoryViewer from './StoryViewer';
 import UploadStoryModal from './UploadStoryModal';
+import { useToast } from './Toast';
 
 export default function StoriesBar() {
     const [storyUsers, setStoryUsers] = useState([]);
@@ -12,12 +13,13 @@ export default function StoriesBar() {
     const [uploadOpen, setUploadOpen] = useState(false);
     const [loading, setLoading] = useState(true);
     const scrollRef = useRef(null);
+    const toast = useToast();
 
     const fetchStories = () => {
         setLoading(true);
         getStories()
             .then((res) => setStoryUsers(res.data || []))
-            .catch(() => { })
+            .catch(() => toast.error('Failed to load stories'))
             .finally(() => setLoading(false));
     };
 

@@ -4,6 +4,8 @@ import { Bell, Heart, MessageSquare, UserPlus, Send, Check, X } from 'lucide-rea
 import { getNotifications, getUnreadCount, markNotificationsRead, markNotificationRead } from '../api/notifications';
 import { acceptFollowRequestFromUser, rejectFollowRequestFromUser } from '../api/users';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from './Toast';
+import timeAgo from '../utils/timeAgo';
 
 const typeIcons = {
     LIKE: { icon: Heart, color: 'text-rose-400', bg: 'bg-rose-400/10' },
@@ -13,41 +15,32 @@ const typeIcons = {
     MESSAGE: { icon: Send, color: 'text-purple-400', bg: 'bg-purple-400/10' },
 };
 
-function timeAgo(dateStr) {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return '';
-    const diff = Date.now() - date.getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'now';
-    if (mins < 60) return `${mins}m`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h`;
-    const days = Math.floor(hours / 24);
-    return `${days}d`;
-}
-
-export default function NotificationBell({ newNotification }) {
+export default function NotificationBell({ pendingNotifications }) {
     const [open, setOpen] = useState(false);
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [loading, setLoading] = useState(false);
     const dropdownRef = useRef(null);
+    const processedCountRef = useRef(0);
     const navigate = useNavigate();
+    const toast = useToast();
 
     // Fetch unread count on mount
     useEffect(() => {
         getUnreadCount()
             .then((res) => setUnreadCount(res.data?.count || 0))
-            .catch(() => { });
+            .catch(() => toast.error('Failed to load notifications'));
     }, []);
 
-    // Handle new realtime notification
+    // Handle new realtime notifications — process all new items from the queue
     useEffect(() => {
-        if (!newNotification) return;
-        setUnreadCount((c) => c + 1);
-        setNotifications((prev) => [newNotification, ...prev]);
-    }, [newNotification]);
+        if (pendingNotifications.length > processedCountRef.current) {
+            const newItems = pendingNotifications.slice(processedCountRef.current);
+            setUnreadCount((c) => c + newItems.length);
+            setNotifications((prev) => [...newItems.reverse(), ...prev]);
+            processedCountRef.current = pendingNotifications.length;
+        }
+    }, [pendingNotifications]);
 
     // Fetch full list when dropdown opens
     useEffect(() => {
@@ -55,7 +48,7 @@ export default function NotificationBell({ newNotification }) {
         setLoading(true);
         getNotifications()
             .then((res) => setNotifications(Array.isArray(res.data) ? res.data : []))
-            .catch(() => { })
+            .catch(() => toast.error('Failed to load notifications'))
             .finally(() => setLoading(false));
     }, [open]);
 
@@ -71,15 +64,22 @@ export default function NotificationBell({ newNotification }) {
     }, []);
 
     const handleMarkRead = async () => {
+        const prevUnreadCount = unreadCount;
+        const prevNotifications = notifications.map(n => ({ ...n }));
         try {
             await markNotificationsRead();
             setUnreadCount(0);
             setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-        } catch { }
+        } catch {
+            setUnreadCount(prevUnreadCount);
+            setNotifications(prevNotifications);
+        }
     };
 
     const handleMarkOneAsRead = async (e, notificationId) => {
         e.stopPropagation();
+        const prevUnreadCount = unreadCount;
+        const prevNotifications = notifications.map(n => ({ ...n }));
         setNotifications(prev => prev.map(n =>
             n.id === notificationId ? { ...n, isRead: true } : n
         ));
@@ -87,6 +87,8 @@ export default function NotificationBell({ newNotification }) {
         try {
             await markNotificationRead(notificationId);
         } catch (error) {
+            setUnreadCount(prevUnreadCount);
+            setNotifications(prevNotifications);
             console.error(error);
         }
     };
@@ -95,13 +97,17 @@ export default function NotificationBell({ newNotification }) {
         e.stopPropagation();
         if (!notification.actorId && !notification.actor?.id) return;
         const targetActorId = notification.actorId || notification.actor?.id;
+        const prevUnreadCount = unreadCount;
+        const prevNotifications = notifications.map(n => ({ ...n }));
+        setNotifications(prev => prev.map(n =>
+            n.id === notification.id ? { ...n, isRead: true, content: 'Request accepted' } : n
+        ));
+        setUnreadCount(c => Math.max(0, c - 1));
         try {
             await acceptFollowRequestFromUser(targetActorId);
-            setNotifications(prev => prev.map(n =>
-                n.id === notification.id ? { ...n, isRead: true, content: 'Request accepted' } : n
-            ));
-            setUnreadCount(c => Math.max(0, c - 1));
         } catch (error) {
+            setUnreadCount(prevUnreadCount);
+            setNotifications(prevNotifications);
             console.error(error);
         }
     };
@@ -110,18 +116,24 @@ export default function NotificationBell({ newNotification }) {
         e.stopPropagation();
         if (!notification.actorId && !notification.actor?.id) return;
         const targetActorId = notification.actorId || notification.actor?.id;
+        const prevUnreadCount = unreadCount;
+        const prevNotifications = notifications.map(n => ({ ...n }));
+        setNotifications(prev => prev.map(n =>
+            n.id === notification.id ? { ...n, isRead: true, content: 'Request removed' } : n
+        ));
+        setUnreadCount(c => Math.max(0, c - 1));
         try {
             await rejectFollowRequestFromUser(targetActorId);
-            setNotifications(prev => prev.map(n =>
-                n.id === notification.id ? { ...n, isRead: true, content: 'Request removed' } : n
-            ));
-            setUnreadCount(c => Math.max(0, c - 1));
         } catch (error) {
+            setUnreadCount(prevUnreadCount);
+            setNotifications(prevNotifications);
             console.error(error);
         }
     };
 
     const handleNotificationClick = async (notification) => {
+        const prevUnreadCount = unreadCount;
+        const prevNotifications = notifications.map(n => ({ ...n }));
         if (!notification.isRead) {
             setNotifications(prev => prev.map(n =>
                 n.id === notification.id ? { ...n, isRead: true } : n
@@ -130,6 +142,8 @@ export default function NotificationBell({ newNotification }) {
             try {
                 await markNotificationRead(notification.id);
             } catch (error) {
+                setUnreadCount(prevUnreadCount);
+                setNotifications(prevNotifications);
                 console.error(error);
             }
         }

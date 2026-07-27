@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ZoomIn, ZoomOut, Maximize2, Loader, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getNetworkGraph } from '../api/users';
+import { isSafeUrl } from '../utils/sanitize';
 
 const NODE_RADIUS = 24;
 const CENTER_RADIUS = 36;
@@ -13,7 +14,7 @@ function buildLayout(center, friends, mutuals) {
     const nodeMap = {};
 
     // Central node
-    const centerNode = { id: center.id, label: center.firstName || center.email?.split('@')[0], pic: center.profilePicUrl, type: 'center', x: 0, y: 0 };
+    const centerNode = { id: center.id, label: center.firstName || 'You', pic: center.profilePicUrl, type: 'center', x: 0, y: 0 };
     nodes.push(centerNode);
     nodeMap[center.id] = centerNode;
 
@@ -23,7 +24,7 @@ function buildLayout(center, friends, mutuals) {
         const angle = (2 * Math.PI * i) / friends.length - Math.PI / 2;
         const node = {
             id: f.id,
-            label: f.firstName || f.email?.split('@')[0],
+            label: f.firstName || 'Friend',
             pic: f.profilePicUrl,
             type: 'friend',
             x: Math.cos(angle) * friendRadius,
@@ -44,7 +45,7 @@ function buildLayout(center, friends, mutuals) {
         const angle = (2 * Math.PI * mutualIdx) / mutuals.length;
         const node = {
             id: m.id,
-            label: m.firstName || m.email?.split('@')[0],
+            label: m.firstName || 'Mutual',
             pic: m.profilePicUrl,
             type: 'mutual',
             x: Math.cos(angle) * mutualRadius,
@@ -87,7 +88,7 @@ function Avatar({ node, r, onClick, isHovered }) {
                 style={{ transform: `scale(${ringScale})`, transition: 'transform 0.2s, opacity 0.2s' }}
             />
             <circle r={r} fill="var(--bg-elevated)" />
-            {node.pic ? (
+            {node.pic && isSafeUrl(node.pic) ? (
                 <image
                     href={node.pic}
                     x={-r} y={-r}
@@ -254,7 +255,7 @@ export default function NetworkGraph({ profile }) {
                         <stop offset="0%" stopColor="var(--bg-card)" />
                         <stop offset="100%" stopColor="var(--bg-primary)" />
                     </radialGradient>
-                    {nodes.map(n => n.pic && (
+                    {nodes.map(n => n.pic && isSafeUrl(n.pic) && (
                         <clipPath key={`clip-${n.id}`} id={`clip-${n.id}`}>
                             <circle r={n.type === 'center' ? CENTER_RADIUS : NODE_RADIUS} />
                         </clipPath>

@@ -29,4 +29,6 @@ public interface SavedPostRepository extends JpaRepository<SavedPost, Long> {
 
     @Query("SELECT sp.post FROM SavedPost sp WHERE LOWER(sp.user.email) = LOWER(:email) ORDER BY sp.createdAt DESC")
     Page<Post> findSavedPostsByUserEmail(@Param("email") String email, Pageable pageable);
+
+    void deleteByPostId(Long postId);
 }

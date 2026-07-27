@@ -6,11 +6,13 @@ import { useAuth } from '../context/AuthContext';
 import CreateGroupModal from '../components/chat/CreateGroupModal';
 import { connectChat, disconnectChat } from '../socket/chatSocket';
 import GroupChatWindow from '../components/chat/GroupChatWindow';
+import { useToast } from '../components/Toast';
 
 let groupsCache = [];
 
 export default function GroupChatPage() {
     const { user } = useAuth();
+    const toast = useToast();
     const [groups, setGroups] = useState(groupsCache);
     const [selectedGroup, setSelectedGroup] = useState(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -33,7 +35,7 @@ export default function GroupChatPage() {
                 groupsCache = data;
                 setGroups(data);
             })
-            .catch(err => console.error("Failed to load groups", err))
+            .catch(err => { console.error("Failed to load groups", err); toast.error('Failed to load groups'); })
             .finally(() => setLoading(false));
     };
 

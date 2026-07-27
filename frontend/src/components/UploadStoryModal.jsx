@@ -59,11 +59,10 @@ export default function UploadStoryModal({ open, onClose, onUploaded }) {
         onClose();
     };
 
-    if (!open) return null;
-
     return (
         <AnimatePresence>
-            <motion.div
+            {open && (
+                <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -141,6 +140,7 @@ export default function UploadStoryModal({ open, onClose, onUploaded }) {
                     />
                 </motion.div>
             </motion.div>
+            )}
         </AnimatePresence>
     );
 }

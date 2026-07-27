@@ -1,6 +1,8 @@
 package com.example.socialmedia.service;
 
+import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -29,15 +31,42 @@ public class PresenceService {
     }
 
     public Set<Long> getOnlineUsers(List<Long> userIds) {
-    Set<Long> online = new HashSet<>();
-
-    for (Long userId : userIds) {
-        if (Boolean.TRUE.equals(
-                redisTemplate.hasKey(ONLINE_PREFIX + userId))) {
-            online.add(userId);
+        Set<Long> online = new HashSet<>();
+        for (Long userId : userIds) {
+            if (Boolean.TRUE.equals(redisTemplate.hasKey(ONLINE_PREFIX + userId))) {
+                online.add(userId);
+            }
         }
+        return online;
     }
 
-    return online;
-}
+    /**
+     * Return all currently online user IDs by scanning Redis keys with the presence prefix.
+     * Uses SCAN instead of KEYS to avoid blocking the Redis server on large key sets.
+     */
+    public Set<Long> getAllOnlineUserIds() {
+        Set<Long> userIds = new HashSet<>();
+        ScanOptions scanOptions = ScanOptions.scanOptions().match(ONLINE_PREFIX + "*").count(100).build();
+        try (Cursor<String> cursor = redisTemplate.scan(scanOptions)) {
+            while (cursor.hasNext()) {
+                String key = cursor.next();
+                try {
+                    userIds.add(Long.valueOf(key.substring(ONLINE_PREFIX.length())));
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        } catch (Exception e) {
+            // Fallback: use keys if SCAN is not supported
+            Set<String> keys = redisTemplate.keys(ONLINE_PREFIX + "*");
+            if (keys != null) {
+                for (String key : keys) {
+                    try {
+                        userIds.add(Long.valueOf(key.substring(ONLINE_PREFIX.length())));
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+            }
+        }
+        return userIds;
+    }
 }

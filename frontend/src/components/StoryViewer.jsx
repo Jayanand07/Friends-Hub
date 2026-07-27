@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X, Eye, Pause, Play } from 'lucide-react';
 import { viewStory } from '../api/stories';
+import timeAgo from '../utils/timeAgo';
 
 const STORY_DURATION = 5000; // 5 seconds per story
 
@@ -26,6 +27,53 @@ export default function StoryViewer({ storyUsers, initialUserIndex, onClose }) {
         }
     }, [currentStory?.storyId]);
 
+    // Refs to avoid stale closures in timer and keyboard handlers
+    const onCloseRef = useRef(onClose);
+    useEffect(() => { onCloseRef.current = onClose; });
+
+    const goNextRef = useRef(null);
+    const goPrevRef = useRef(null);
+    const togglePauseRef = useRef(null);
+
+    const goNext = useCallback(() => {
+        const stories = storyUsers[userIdx]?.stories;
+        if (storyIdx < stories.length - 1) {
+            setDirection(1);
+            setStoryIdx(storyIdx + 1);
+        } else if (userIdx < storyUsers.length - 1) {
+            setDirection(1);
+            setUserIdx(userIdx + 1);
+            setStoryIdx(0);
+        } else {
+            onCloseRef.current();
+        }
+    }, [userIdx, storyIdx, storyUsers]);
+
+    const goPrev = useCallback(() => {
+        if (storyIdx > 0) {
+            setDirection(-1);
+            setStoryIdx(storyIdx - 1);
+        } else if (userIdx > 0) {
+            setDirection(-1);
+            const prevStories = storyUsers[userIdx - 1]?.stories;
+            setUserIdx(userIdx - 1);
+            setStoryIdx(prevStories ? prevStories.length - 1 : 0);
+        }
+    }, [userIdx, storyIdx, storyUsers]);
+
+    const togglePause = useCallback(() => {
+        if (paused) {
+            setPaused(false);
+        } else {
+            setPaused(true);
+        }
+    }, [paused]);
+
+    // Keep refs in sync with callbacks
+    useEffect(() => { goNextRef.current = goNext; }, [goNext]);
+    useEffect(() => { goPrevRef.current = goPrev; }, [goPrev]);
+    useEffect(() => { togglePauseRef.current = togglePause; }, [togglePause]);
+
     // Auto-advance timer
     const startTimer = useCallback(() => {
         startTimeRef.current = Date.now();
@@ -35,10 +83,10 @@ export default function StoryViewer({ storyUsers, initialUserIndex, onClose }) {
             setProgress(pct);
             if (pct >= 100) {
                 clearInterval(timerRef.current);
-                goNext();
+                if (goNextRef.current) goNextRef.current();
             }
         }, 30);
-    }, [userIdx, storyIdx]);
+    }, []);
 
     const pauseTimer = useCallback(() => {
         if (timerRef.current) {
@@ -52,78 +100,23 @@ export default function StoryViewer({ storyUsers, initialUserIndex, onClose }) {
         setProgress(0);
         if (!paused) startTimer();
         return () => clearInterval(timerRef.current);
-    }, [userIdx, storyIdx, paused]);
+    }, [userIdx, storyIdx, paused, startTimer]);
 
-    const goNext = () => {
-        const stories = storyUsers[userIdx]?.stories;
-        if (storyIdx < stories.length - 1) {
-            setDirection(1);
-            setStoryIdx(storyIdx + 1);
-        } else if (userIdx < storyUsers.length - 1) {
-            setDirection(1);
-            setUserIdx(userIdx + 1);
-            setStoryIdx(0);
-        } else {
-            onClose();
-        }
-    };
-
-    const goPrev = () => {
-        if (storyIdx > 0) {
-            setDirection(-1);
-            setStoryIdx(storyIdx - 1);
-        } else if (userIdx > 0) {
-            setDirection(-1);
-            const prevStories = storyUsers[userIdx - 1]?.stories;
-            setUserIdx(userIdx - 1);
-            setStoryIdx(prevStories ? prevStories.length - 1 : 0);
-        }
-    };
-
-    const togglePause = () => {
-        if (paused) {
-            setPaused(false);
-            startTimer();
-        } else {
-            setPaused(true);
-            pauseTimer();
-        }
-    };
-
-    // Keyboard navigation
     useEffect(() => {
         const handleKey = (e) => {
-            if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); goNext(); }
-            if (e.key === 'ArrowLeft') goPrev();
-            if (e.key === 'Escape') onClose();
-            if (e.key === 'p') togglePause();
+            if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); goNextRef.current?.(); }
+            if (e.key === 'ArrowLeft') goPrevRef.current?.();
+            if (e.key === 'Escape') onCloseRef.current();
+            if (e.key === 'p') togglePauseRef.current?.();
         };
         window.addEventListener('keydown', handleKey);
         return () => window.removeEventListener('keydown', handleKey);
-    }, [userIdx, storyIdx, paused]);
+        // Intentionally stable: event handler uses refs to always call latest functions
+    }, []);
 
     if (!currentStory) return null;
 
     const stories = currentUserStories.stories;
-
-    // Time ago for story
-    const timeAgo = (dateStr) => {
-        if (!dateStr) return '';
-        let str = String(dateStr).trim();
-        if (str.includes('T') && !str.endsWith('Z') && !str.includes('+') && !/-\d{2}:\d{2}$/.test(str)) {
-            str += 'Z';
-        }
-        const date = new Date(str);
-        if (isNaN(date.getTime())) return '';
-        const diff = Math.max(0, Date.now() - date.getTime());
-        const mins = Math.floor(diff / 60000);
-        if (mins < 1) return 'Just now';
-        if (mins < 60) return `${mins}m`;
-        const hours = Math.floor(mins / 60);
-        if (hours < 24) return `${hours}h`;
-        const days = Math.floor(hours / 24);
-        return `${days}d`;
-    };
 
     return (
         <motion.div

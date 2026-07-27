@@ -9,7 +9,7 @@ import FriendshipMilestones from '../components/FriendshipMilestones';
 import MutualFriendsPanel from '../components/MutualFriendsPanel';
 import CompatibilityScore from '../components/CompatibilityScore';
 import { useAuth } from '../context/AuthContext';
-import { getProfile, getUserProfileById, updateProfile, getFollowers, getFollowing, uploadProfilePic, removeProfilePicture, followUser, unfollowUser } from '../api/users';
+import { getProfile, getUserProfileById, updateProfile, getFollowers, getFollowing, uploadProfilePic, removeProfilePicture, followUser } from '../api/users';
 import { getPostsByUser, getSavedPosts } from '../api/posts';
 import { useToast } from '../components/Toast';
 import FollowersModal from '../components/FollowersModal';
@@ -234,7 +234,7 @@ export default function ProfilePage() {
     };
 
     const initial = profile?.firstName?.charAt(0)?.toUpperCase() || profile?.email?.charAt(0)?.toUpperCase() || '?';
-    const displayName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || profile?.email?.split('@')[0];
+    const displayName = [profile?.firstName, profile?.lastName].filter(Boolean).join(' ') || 'User';
 
     if (loading) {
         return (
@@ -477,7 +477,7 @@ export default function ProfilePage() {
                                             className="relative aspect-square bg-[var(--bg-elevated)] cursor-pointer group overflow-hidden sm:rounded-lg border border-[var(--border-color)]/30"
                                         >
                                             {post.imageUrl ? (
-                                                <img src={post.imageUrl} alt="" className="w-full h-full object-cover" />
+                                                <img src={post.imageUrl} alt="Post" className="w-full h-full object-cover" />
                                             ) : (
                                                 <div className="w-full h-full flex items-center justify-center p-3 sm:p-5">
                                                     <p className="text-[10px] sm:text-[13px] text-[var(--text-secondary)] text-center line-clamp-6 leading-relaxed italic">{post.content}</p>
@@ -547,7 +547,7 @@ export default function ProfilePage() {
 
             <FollowersModal
                 open={followersModal.open}
-                onClose={() => setFollowersModal({ ...followersModal, open: false })}
+                onClose={() => setFollowersModal({ open: false, title: '', users: [] })}
                 title={followersModal.title}
                 users={followersModal.users}
             />

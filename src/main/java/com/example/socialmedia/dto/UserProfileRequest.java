@@ -1,13 +1,19 @@
 package com.example.socialmedia.dto;
 
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 public class UserProfileRequest {
+    @Size(max = 50, message = "First name cannot exceed 50 characters")
     private String firstName;
+    @Size(max = 50, message = "Last name cannot exceed 50 characters")
     private String lastName;
+    @Size(max = 500, message = "Bio cannot exceed 500 characters")
     private String bio;
     private String profilePicUrl;
+    @Size(max = 200, message = "Website URL cannot exceed 200 characters")
     private String website;
+    @Size(max = 100, message = "Location cannot exceed 100 characters")
     private String location;
     private String gender;
     private String dob;

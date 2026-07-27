@@ -1,5 +1,7 @@
 package com.example.socialmedia.exception;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -14,14 +16,18 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntimeException(RuntimeException ex) {
+        // Log full stack trace server-side but return only the message to the client
+        log.warn("RuntimeException: {}", ex.getMessage(), ex);
         return buildErrorResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, Object>> handleAccessDeniedException(AccessDeniedException ex) {
-        return buildErrorResponse(HttpStatus.FORBIDDEN, "Access denied: " + ex.getMessage());
+        return buildErrorResponse(HttpStatus.FORBIDDEN, "Access denied");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -42,11 +48,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(jakarta.persistence.EntityNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleEntityNotFoundException(
             jakarta.persistence.EntityNotFoundException ex) {
-        return buildErrorResponse(HttpStatus.NOT_FOUND, ex.getMessage());
+        log.warn("EntityNotFoundException: {}", ex.getMessage(), ex);
+        return buildErrorResponse(HttpStatus.NOT_FOUND, "Resource not found");
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException ex) {
+        log.warn("IllegalArgumentException: {}", ex.getMessage(), ex);
         return buildErrorResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
@@ -59,6 +67,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGenericException(Exception ex) {
+        log.error("Unhandled exception: {}", ex.getMessage(), ex);
         return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred");
     }
 

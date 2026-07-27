@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ImagePlus, Send, Loader, Type, Upload, Image as ImageIcon, CheckCircle } from 'lucide-react';
 import { createPost, uploadImage } from '../api/posts';
@@ -18,6 +18,7 @@ export default function CreatePostModal({ open, onClose, onPostCreated }) {
     const [uploadProgress, setUploadProgress] = useState(0);
     const [dragOver, setDragOver] = useState(false);
     const fileRef = useRef(null);
+    const previewUrlRef = useRef(null);
     const toast = useToast();
 
     const charCount = content.length;
@@ -38,8 +39,12 @@ export default function CreatePostModal({ open, onClose, onPostCreated }) {
 
     const handleFileSelect = (f) => {
         if (!validateFile(f)) return;
+        // Revoke previous preview URL to avoid memory leak
+        if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+        const url = URL.createObjectURL(f);
+        previewUrlRef.current = url;
         setFile(f);
-        setPreview(URL.createObjectURL(f));
+        setPreview(url);
         setImageUrl('');
     };
 
@@ -47,7 +52,16 @@ export default function CreatePostModal({ open, onClose, onPostCreated }) {
         e.preventDefault();
         setDragOver(false);
         const f = e.dataTransfer?.files?.[0];
-        if (f) handleFileSelect(f);
+        if (f) {
+            if (!validateFile(f)) return;
+            // Revoke previous preview URL to avoid memory leak
+            if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+            const url = URL.createObjectURL(f);
+            previewUrlRef.current = url;
+            setFile(f);
+            setPreview(url);
+            setImageUrl('');
+        }
     }, []);
 
     const handleDragOver = useCallback((e) => {
@@ -60,11 +74,20 @@ export default function CreatePostModal({ open, onClose, onPostCreated }) {
     }, []);
 
     const removeFile = () => {
+        if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
         setFile(null);
         setPreview('');
         setImageUrl('');
         setUploadProgress(0);
     };
+
+    // Cleanup preview URLs on unmount
+    useEffect(() => {
+        return () => {
+            if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+        };
+    }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -86,9 +109,7 @@ export default function CreatePostModal({ open, onClose, onPostCreated }) {
             await createPost({ content, imageUrl: finalImageUrl || null });
             setContent('');
             setImageUrl('');
-            setFile(null);
-            setPreview('');
-            setUploadProgress(0);
+            removeFile();
             toast.success('Post published! 🚀');
             onPostCreated?.();
             onClose();

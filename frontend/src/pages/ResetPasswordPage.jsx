@@ -8,7 +8,7 @@ import { useToast } from '../components/Toast';
 
 export default function ResetPasswordPage() {
     const [searchParams] = useSearchParams();
-    const [email, setEmail] = useState(searchParams.get('email') || '');
+    const [email, setEmail] = useState(sessionStorage.getItem('resetPasswordEmail') || searchParams.get('email') || '');
     const [otp, setOtp] = useState('');
     const navigate = useNavigate();
     const toast = useToast();
@@ -19,14 +19,8 @@ export default function ResetPasswordPage() {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
 
-    useEffect(() => {
-        const eParam = searchParams.get('email');
-        if (eParam) setEmail(eParam);
-        // SECURITY: OTP must only come from user input, never from URL params
-    }, [searchParams]);
-
-
-
+    // Email is sourced from sessionStorage (set during forgot password flow) or manually entered.
+    // URL param fallback is kept for backward compatibility but sessionStorage is preferred.
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
@@ -123,6 +117,7 @@ export default function ResetPasswordPage() {
                                 <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                                 <input
                                     type="password"
+                                    autoComplete="new-password"
                                     className="input-field pl-9 text-[13px]"
                                     placeholder="••••••••"
                                     value={password}
@@ -138,6 +133,7 @@ export default function ResetPasswordPage() {
                                 <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                                 <input
                                     type="password"
+                                    autoComplete="new-password"
                                     className="input-field pl-9 text-[13px]"
                                     placeholder="••••••••"
                                     value={confirmPassword}

@@ -81,13 +81,14 @@ public class ReactionService {
         reactionRepository.deleteByUserAndTargetTypeAndTargetId(user, type, targetId);
     }
 
+    @Transactional(readOnly = true)
     public List<Map<String, Object>> getReactions(String targetType, Long targetId) {
         ReactionTargetType type = ReactionTargetType.valueOf(targetType.toUpperCase());
         return reactionRepository.findByTargetTypeAndTargetId(type, targetId).stream()
                 .map(r -> {
-                    String name = r.getUser().getUserInfo() != null
-                            ? r.getUser().getUserInfo().getFirstName()
-                            : r.getUser().getEmail().split("@")[0];
+                    String name = r.getUser().getUserInfo() != null && r.getUser().getUserInfo().getFirstName() != null
+                            ? r.getUser().getUserInfo().getFirstName() + (r.getUser().getUserInfo().getLastName() != null ? " " + r.getUser().getUserInfo().getLastName() : "")
+                            : "User#" + r.getUser().getId();
                     return Map.<String, Object>of(
                             "id", r.getId(),
                             "userId", r.getUser().getId(),

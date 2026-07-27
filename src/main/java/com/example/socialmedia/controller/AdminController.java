@@ -1,7 +1,7 @@
 package com.example.socialmedia.controller;
 
+import com.example.socialmedia.dto.AdminActionLogResponse;
 import com.example.socialmedia.dto.FollowUserResponse;
-import com.example.socialmedia.entity.AdminActionLog;
 import com.example.socialmedia.service.AdminService;
 
 import org.springframework.http.ResponseEntity;
@@ -61,7 +61,7 @@ public class AdminController {
 
     @GetMapping("/logs")
     @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
-    public ResponseEntity<List<AdminActionLog>> getActionLogs() {
+    public ResponseEntity<List<AdminActionLogResponse>> getActionLogs() {
         return ResponseEntity.ok(adminService.getActionLogs());
     }
 }

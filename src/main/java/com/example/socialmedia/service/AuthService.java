@@ -33,12 +33,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.time.Duration;
 import com.example.socialmedia.dto.OAuthRequest;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class AuthService {
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuthService.class);
+
+    private static final ConcurrentHashMap<String, Integer> loginAttemptsFallback = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Long> loginFallbackExpiry = new ConcurrentHashMap<>();
 
     private final UserRepository userRepository;
     private final UserInfoRepository userInfoRepository;
@@ -138,7 +146,27 @@ public class AuthService {
             if (e.getMessage() != null && e.getMessage().startsWith("Too many login")) {
                 throw e;
             }
-            org.slf4j.LoggerFactory.getLogger(AuthService.class).warn("Redis rate-limiting bypass: {}", e.getMessage());
+            org.slf4j.LoggerFactory.getLogger(AuthService.class).warn("Redis rate-limiting unavailable, using in-memory fallback: {}", e.getMessage());
+
+            // In-memory fallback for rate limiting when Redis is down
+            long now = System.currentTimeMillis();
+            Long windowEnd = loginFallbackExpiry.get(attemptsKey);
+            if (windowEnd == null || now > windowEnd) {
+                loginFallbackExpiry.put(attemptsKey, now + 60_000L);
+                loginAttemptsFallback.put(attemptsKey, 1);
+            } else {
+                int count = loginAttemptsFallback.merge(attemptsKey, 1, Integer::sum);
+                if (count > 10) {
+                    throw new RuntimeException("Too many login attempts. Please try again in 1 minute.");
+                }
+            }
+
+            // Periodically evict expired entries to prevent unbounded map growth
+            if (loginFallbackExpiry.size() > 10000) {
+                long cutoff = now;
+                loginFallbackExpiry.entrySet().removeIf(entry -> entry.getValue() < cutoff);
+                loginAttemptsFallback.keySet().removeIf(k -> !loginFallbackExpiry.containsKey(k));
+            }
         }
 
         try {
@@ -149,8 +177,11 @@ public class AuthService {
             try {
                 redisTemplate.delete(attemptsKey);
             } catch (Exception ignored) {}
-        } catch (Exception e) {
-            throw e;
+            // Clear in-memory fallback on successful login
+            loginAttemptsFallback.remove(attemptsKey);
+            loginFallbackExpiry.remove(attemptsKey);
+        } catch (BadCredentialsException e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
         }
 
         var user = userRepository.findByEmail(email)
@@ -215,8 +246,8 @@ public class AuthService {
         if (userOpt.isPresent()) {
             String otp = String.format("%06d", SECURE_RANDOM.nextInt(1000000));
             User user = userOpt.get();
-            user.setVerificationToken(hashToken(otp));
-            user.setTokenExpiry(LocalDateTime.now().plusMinutes(10));
+            user.setPasswordResetToken(hashToken(otp));
+            user.setResetTokenExpiry(LocalDateTime.now().plusMinutes(10));
             userRepository.save(user);
 
             try {
@@ -234,7 +265,7 @@ public class AuthService {
 
             if (!emailSent) {
                 // SECURITY: Never leak OTP in response. Log server-side only.
-                log.warn("OTP email failed for {}. OTP stored in Redis/DB only.", normalizedEmail);
+                log.warn("OTP email failed for {}. OTP stored in Redis/DB only.", maskEmail(normalizedEmail));
                 return "If that email exists, an OTP has been sent.";
             }
         }
@@ -255,10 +286,10 @@ public class AuthService {
 
         boolean validOtp = (storedOtp != null && storedOtp.equals(otp));
         if (!validOtp) {
-            if (user.getVerificationToken() != null && user.getTokenExpiry() != null
-                    && user.getTokenExpiry().isAfter(LocalDateTime.now())) {
+            if (user.getPasswordResetToken() != null && user.getResetTokenExpiry() != null
+                    && user.getResetTokenExpiry().isAfter(LocalDateTime.now())) {
                 String hashedIncoming = hashToken(otp);
-                if (user.getVerificationToken().equals(hashedIncoming)) {
+                if (user.getPasswordResetToken().equals(hashedIncoming)) {
                     validOtp = true;
                 }
             }
@@ -269,8 +300,8 @@ public class AuthService {
         }
 
         user.setPassword(passwordEncoder.encode(newPassword));
-        user.setVerificationToken(null);
-        user.setTokenExpiry(null);
+        user.setPasswordResetToken(null);
+        user.setResetTokenExpiry(null);
         userRepository.save(user);
 
         try {
@@ -527,6 +558,13 @@ public class AuthService {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256 not available", e);
         }
+    }
+    /** Mask email for logging: e.g. "user@example.com" -> "u*****@example.com" */
+    private static String maskEmail(String email) {
+        if (email == null || email.isBlank()) return email;
+        int atIdx = email.indexOf('@');
+        if (atIdx <= 1) return email;
+        return email.charAt(0) + "*****" + email.substring(atIdx);
     }
 }
 

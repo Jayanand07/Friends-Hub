@@ -1,5 +1,6 @@
 package com.example.socialmedia.service;
 
+import com.example.socialmedia.dto.AdminActionLogResponse;
 import com.example.socialmedia.dto.FollowUserResponse;
 import com.example.socialmedia.entity.*;
 import com.example.socialmedia.repository.*;
@@ -30,6 +31,7 @@ public class AdminService {
         this.adminActionLogRepository = adminActionLogRepository;
     }
 
+    @Transactional(readOnly = true)
     public List<FollowUserResponse> getAllUsers() {
         return userRepository.findAll().stream()
                 .map(u -> {
@@ -48,7 +50,7 @@ public class AdminService {
         User target = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        logAction(admin, "DELETE_USER", userId, null, "Deleted user: " + target.getEmail());
+        logAction(admin, "DELETE_USER", userId, null, "Deleted user ID: " + userId);
         userRepository.delete(target);
         return "User deleted";
     }
@@ -63,7 +65,7 @@ public class AdminService {
         if (!blockRepository.existsByBlockerAndBlocked(admin, target)) {
             blockRepository.save(new Block(admin, target));
         }
-        logAction(admin, "BLOCK_USER", userId, null, "Blocked user: " + target.getEmail());
+        logAction(admin, "BLOCK_USER", userId, null, "Blocked user ID: " + userId);
         return "User blocked by admin";
     }
 
@@ -75,7 +77,7 @@ public class AdminService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         blockRepository.findByBlockerAndBlocked(admin, target).ifPresent(blockRepository::delete);
-        logAction(admin, "UNBLOCK_USER", userId, null, "Unblocked user: " + target.getEmail());
+        logAction(admin, "UNBLOCK_USER", userId, null, "Unblocked user ID: " + userId);
         return "User unblocked by admin";
     }
 
@@ -103,8 +105,24 @@ public class AdminService {
         return "Comment deleted by admin";
     }
 
-    public List<AdminActionLog> getActionLogs() {
-        return adminActionLogRepository.findAllByOrderByCreatedAtDesc();
+    @Transactional(readOnly = true)
+    public List<AdminActionLogResponse> getActionLogs() {
+        return adminActionLogRepository.findAllByOrderByCreatedAtDesc().stream()
+                .map(log -> {
+                    String adminName = log.getAdmin() != null && log.getAdmin().getUserInfo() != null
+                            ? (log.getAdmin().getUserInfo().getFirstName() + " " +
+                               (log.getAdmin().getUserInfo().getLastName() != null ? log.getAdmin().getUserInfo().getLastName() : ""))
+                            : "Admin#" + (log.getAdmin() != null ? log.getAdmin().getId() : 0);
+                    return new AdminActionLogResponse(
+                            log.getId(),
+                            log.getAdmin() != null ? log.getAdmin().getId() : null,
+                            adminName.trim(),
+                            log.getActionType(),
+                            log.getTargetUserId(),
+                            log.getTargetPostId(),
+                            log.getDescription(),
+                            log.getCreatedAt());
+                }).collect(Collectors.toList());
     }
 
     private void logAction(User admin, String actionType, Long targetUserId, Long targetPostId, String description) {

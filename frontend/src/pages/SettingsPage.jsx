@@ -25,7 +25,6 @@ export default function SettingsPage() {
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [showBlockedModal, setShowBlockedModal] = useState(false);
     const toast = useToast();
 
     const [form, setForm] = useState({
@@ -53,6 +52,7 @@ export default function SettingsPage() {
             });
         } catch (err) {
             console.error(err);
+            toast.error('Failed to load profile data');
         } finally {
             setLoading(false);
         }
@@ -76,7 +76,7 @@ export default function SettingsPage() {
     if (loading) {
         return (
             <div className="flex justify-center items-center min-h-[60vh]">
-                <Loader2 className="animate-spin text-[#a8a8a8]" size={32} />
+                <Loader2 className="animate-spin text-[var(--text-muted)]" size={32} />
             </div>
         );
     }
@@ -120,7 +120,7 @@ export default function SettingsPage() {
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${activeTab === tab.id
-                                        ? 'bg-white text-black'
+                                        ? 'bg-[var(--accent)] text-white'
                                         : 'bg-[var(--bg-elevated)] text-[var(--text-muted)]'
                                     }`}
                             >
@@ -159,7 +159,7 @@ export default function SettingsPage() {
                                             onChange={e => setForm(f => ({ ...f, bio: e.target.value }))}
                                             rows={3}
                                             maxLength={150}
-                                            className="w-full bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-[var(--accent)] transition-colors resize-none"
+                                            className="w-full bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg px-3 py-2.5 text-[var(--text-primary)] text-sm outline-none focus:border-[var(--accent)] transition-colors resize-none"
                                             placeholder="Write something about yourself..."
                                         />
                                         <p className="text-right text-[10px] text-[var(--text-muted)] mt-1">{form.bio.length}/150</p>
@@ -174,7 +174,7 @@ export default function SettingsPage() {
                                             <select
                                                 value={form.gender}
                                                 onChange={e => setForm(f => ({ ...f, gender: e.target.value }))}
-                                                className="w-full bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg px-3 py-2.5 text-white text-sm outline-none focus:border-[var(--accent)] transition-colors cursor-pointer"
+                                                className="w-full bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg px-3 py-2.5 text-[var(--text-primary)] text-sm outline-none focus:border-[var(--accent)] transition-colors cursor-pointer"
                                             >
                                                 <option value="">Prefer not to say</option>
                                                 <option value="Male">Male</option>
@@ -250,12 +250,6 @@ export default function SettingsPage() {
                 </div>
             </div>
 
-            {/* Blocked Users Modal */}
-            <AnimatePresence>
-                {showBlockedModal && (
-                    <BlockedUsersList onClose={() => setShowBlockedModal(false)} />
-                )}
-            </AnimatePresence>
         </div>
     );
 }

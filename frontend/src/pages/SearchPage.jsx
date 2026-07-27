@@ -287,11 +287,11 @@ export default function SearchPage() {
                                     >
                                         <div className="avatar w-12 h-12 text-[14px] flex-shrink-0">
                                             {user.profilePicUrl ? (
-                                                <img src={user.profilePicUrl} className="w-full h-full object-cover rounded-full" alt="" />
+                                                <img src={user.profilePicUrl} alt={user.name || 'User'} className="w-full h-full object-cover rounded-full" />
                                             ) : (user.name?.charAt(0).toUpperCase() || '?')}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="text-[14px] font-bold text-[var(--text-primary)] truncate">{user.name || user.email}</p>
+                                            <p className="text-[14px] font-bold text-[var(--text-primary)] truncate">{user.name || 'Unknown'}</p>
                                             <div className="flex items-center gap-3 mt-0.5 flex-wrap">
                                                 {user.location && (
                                                     <span className="flex items-center gap-1 text-[11px] text-[var(--text-muted)]">
@@ -343,7 +343,7 @@ export default function SearchPage() {
                                         <button onClick={() => navigate(`/profile/${s.id}`)} className="flex-1 flex items-center gap-3 text-left">
                                             <div className="avatar w-10 h-10 text-[12px] flex-shrink-0">
                                                 {s.profilePicUrl ? (
-                                                    <img src={s.profilePicUrl} className="w-full h-full object-cover rounded-full" alt="" />
+                                                    <img src={s.profilePicUrl} alt={s.name || 'User'} className="w-full h-full object-cover rounded-full" />
                                                 ) : s.name?.charAt(0).toUpperCase()}
                                             </div>
                                             <div className="flex-1 min-w-0">

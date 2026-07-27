@@ -93,7 +93,7 @@ public class NotificationService {
         if (info != null && info.getFirstName() != null && !info.getFirstName().isEmpty()) {
             return info.getFirstName() + (info.getLastName() != null ? " " + info.getLastName() : "");
         }
-        return user.getEmail().split("@")[0];
+        return "User#" + user.getId();
     }
 
     private NotificationDTO toDTO(Notification n) {

@@ -58,6 +58,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             userEmail = jwtService.extractUsername(jwt);
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
+
+                // L-3: Verify JWT role matches current user role from database
+                String jwtRole = jwtService.extractClaim(jwt, c -> (String) c.get("role"));
+                String userRole = userDetails.getAuthorities().iterator().next().getAuthority();
+                if (!userRole.equals(jwtRole)) {
+                    log.warn("JWT role {} does not match current user role {} for user {} — rejecting",
+                            jwtRole, userRole, userEmail);
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Token role mismatch\"}");
+                    return;
+                }
                 if (jwtService.isTokenValid(jwt, userDetails)) {
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails,
@@ -71,6 +83,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } catch (Exception e) {
             log.warn("JWT authentication failed for request {} {}: {}", request.getMethod(),
                     request.getRequestURI(), e.getMessage());
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"status\":401,\"error\":\"Unauthorized\",\"message\":\"Invalid or expired token\"}");
+            return;
         }
         filterChain.doFilter(request, response);
     }

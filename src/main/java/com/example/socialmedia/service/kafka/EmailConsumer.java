@@ -42,11 +42,11 @@ public class EmailConsumer {
                 return;
             }
             if (event.getTo() == null || event.getTo().trim().isEmpty()) {
-                log.error("Email event missing 'to' address, skipping: {}", event);
+                log.error("Email event missing 'to' address, skipping");
                 return;
             }
             if (event.getSubject() == null || event.getSubject().trim().isEmpty()) {
-                log.error("Email event missing subject, skipping for recipient: {}", event.getTo());
+                log.error("Email event missing subject, skipping for recipient: {}", maskEmail(event.getTo()));
                 return;
             }
 
@@ -59,7 +59,7 @@ public class EmailConsumer {
             message.setText(body);
 
             mailSender.send(message);
-            log.info("Email sent successfully to {}", event.getTo());
+            log.info("Email sent successfully to {}", maskEmail(event.getTo()));
 
         } catch (Exception e) {
             log.error("Email send failed: {}", e.getMessage());
@@ -89,5 +89,13 @@ public class EmailConsumer {
                     entry.getValue() != null ? entry.getValue().toString() : "");
         }
         return result;
+    }
+
+    /** Mask email for logging: e.g. "user@example.com" -> "u*****@example.com" */
+    private static String maskEmail(String email) {
+        if (email == null || email.isBlank()) return email;
+        int atIdx = email.indexOf('@');
+        if (atIdx <= 1) return email;
+        return email.charAt(0) + "*****" + email.substring(atIdx);
     }
 }

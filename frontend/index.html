@@ -5,6 +5,30 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect x='0' y='0' width='65' height='60' rx='16' fill='%23E8824A'/><rect x='35' y='40' width='65' height='60' rx='16' fill='%23E8824A' opacity='0.4'/></svg>"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Security: Content Security Policy -->
+  <!-- NOTE: 'unsafe-inline'/'unsafe-eval' are needed for Vite HMR in dev mode.
+       Remove them for production builds and use nonce/hash-based CSP instead. -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' 'unsafe-eval';
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    font-src 'self' https://fonts.gstatic.com;
+    connect-src 'self' https://*.supabase.co ws://localhost:8080 http://localhost:8080;
+    img-src 'self' data: blob:;
+    frame-ancestors 'none';
+    base-uri 'self';
+    form-action 'self';
+  ">
+
+  <!-- Security: Referrer-Policy -->
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+
+  <!-- PWA / Theme -->
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="color-scheme" content="dark light">
+
+  <!-- Preconnect for Google Fonts -->
   <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

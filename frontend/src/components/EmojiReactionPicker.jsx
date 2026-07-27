@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Smile, X } from 'lucide-react';
 import { addReaction, getReactions } from '../api/reactions';
+import { useToast } from './Toast';
 
 const EMOJI_LIST = ['❤️', '🔥', '😂', '😍', '😢', '😡', '👏', '🎉', '💯', '🙌', '😎', '🤔', '💀', '🥺', '✨', '💪'];
 
@@ -9,6 +10,7 @@ export default function EmojiReactionPicker({ targetType, targetId, onReactionAd
     const [open, setOpen] = useState(false);
     const [reactions, setReactions] = useState([]);
     const pickerRef = useRef(null);
+    const toast = useToast();
 
     useEffect(() => {
         loadReactions();
@@ -28,7 +30,9 @@ export default function EmojiReactionPicker({ targetType, targetId, onReactionAd
         try {
             const res = await getReactions(targetType, targetId);
             setReactions(res.data);
-        } catch (err) { }
+        } catch (err) {
+            console.error(err);
+        }
     };
 
     const handleEmojiClick = async (emoji) => {
@@ -39,6 +43,7 @@ export default function EmojiReactionPicker({ targetType, targetId, onReactionAd
             setOpen(false);
         } catch (err) {
             console.error(err);
+            toast.error('Failed to add reaction');
         }
     };
 
@@ -60,10 +65,10 @@ export default function EmojiReactionPicker({ targetType, targetId, onReactionAd
                             key={emoji}
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
-                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-[#262626] text-xs cursor-default"
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-[var(--bg-elevated)] text-xs cursor-default"
                         >
                             <span>{emoji}</span>
-                            {count > 1 && <span className="text-[#a8a8a8] text-[10px]">{count}</span>}
+                            {count > 1 && <span className="text-[var(--text-muted)] text-[10px]">{count}</span>}
                         </motion.span>
                     ))}
                 </div>
@@ -72,7 +77,8 @@ export default function EmojiReactionPicker({ targetType, targetId, onReactionAd
             {/* Emoji trigger */}
             <button
                 onClick={() => setOpen(!open)}
-                className="text-[#a8a8a8] hover:text-white transition-colors cursor-pointer"
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                aria-label="Open reaction picker"
             >
                 <Smile size={18} />
             </button>
@@ -84,12 +90,12 @@ export default function EmojiReactionPicker({ targetType, targetId, onReactionAd
                         initial={{ opacity: 0, scale: 0.8, y: 10 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.8, y: 10 }}
-                        className="absolute bottom-full right-0 mb-2 p-3 bg-[#262626] border border-[#363636] rounded-xl shadow-2xl z-50"
+                        className="absolute bottom-full right-0 mb-2 p-3 bg-[var(--bg-elevated)] border border-[var(--border-color)] rounded-xl shadow-2xl z-50"
                         style={{ minWidth: '200px' }}
                     >
                         <div className="flex items-center justify-between mb-2">
-                            <span className="text-[#a8a8a8] text-xs font-semibold">React</span>
-                            <button onClick={() => setOpen(false)} className="text-[#a8a8a8] hover:text-white cursor-pointer">
+                            <span className="text-[var(--text-muted)] text-xs font-semibold">React</span>
+                            <button onClick={() => setOpen(false)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer">
                                 <X size={12} />
                             </button>
                         </div>
@@ -100,7 +106,8 @@ export default function EmojiReactionPicker({ targetType, targetId, onReactionAd
                                     whileHover={{ scale: 1.3 }}
                                     whileTap={{ scale: 0.9 }}
                                     onClick={() => handleEmojiClick(emoji)}
-                                    className="w-7 h-7 flex items-center justify-center text-lg rounded hover:bg-[#363636] cursor-pointer transition-colors"
+                                    className="w-7 h-7 flex items-center justify-center text-lg rounded hover:bg-[var(--bg-hover)] cursor-pointer transition-colors"
+                                    aria-label={`React with ${emoji}`}
                                 >
                                     {emoji}
                                 </motion.button>

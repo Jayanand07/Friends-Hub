@@ -4,19 +4,7 @@ import { Send, Loader, Trash2, Reply, X } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getComments, addComment, deleteComment } from '../api/posts';
 import { useToast } from './Toast';
-
-function timeAgo(dateStr) {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return '';
-    const diff = Date.now() - date.getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'now';
-    if (mins < 60) return `${mins}m`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h`;
-    return `${Math.floor(hours / 24)}d`;
-}
+import timeAgo from '../utils/timeAgo';
 
 // Formats text to highlight @mentions like Instagram
 function renderFormattedContent(content) {
@@ -44,6 +32,7 @@ export default function CommentSection({ postId, currentUserId, onCommentAdded, 
     const [fetching, setFetching] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const inputRef = useRef(null);
+    const replyMentionRef = useRef('');
     const toast = useToast();
     const navigate = useNavigate();
 
@@ -77,17 +66,23 @@ export default function CommentSection({ postId, currentUserId, onCommentAdded, 
             commenterId: comment.commenterId
         });
         const mention = `@${comment.commenterName} `;
-        if (!text.startsWith(mention)) {
-            setText(mention + text.replace(/^@[a-zA-Z0-9_\s]+/, ''));
-        }
+        replyMentionRef.current = mention;
+        setText(mention + text.replace(/^@[a-zA-Z0-9_\s]+/, ''));
         setTimeout(() => {
             inputRef.current?.focus();
         }, 50);
     };
 
     const cancelReply = () => {
+        const mention = replyMentionRef.current;
         setReplyingTo(null);
-        setText(text.replace(/^@[a-zA-Z0-9_\s]+/, ''));
+        if (mention && text.startsWith(mention)) {
+            setText(text.slice(mention.length));
+        } else if (mention) {
+            // Fallback: strip leading @word pattern
+            setText(text.replace(/^@[a-zA-Z0-9_]+/, '').trimStart());
+        }
+        replyMentionRef.current = '';
     };
 
     const handleSubmit = async (e) => {
@@ -141,7 +136,7 @@ export default function CommentSection({ postId, currentUserId, onCommentAdded, 
                             >
                                 <Link to={`/profile/${c.commenterId}`} className="avatar w-7 h-7 text-[9px] flex-shrink-0 mt-0.5 hover:ring-2 ring-[var(--accent)] transition-all">
                                     {c.authorProfilePic ? (
-                                        <img src={c.authorProfilePic} alt="" className="w-full h-full object-cover rounded-full" />
+                                        <img src={c.authorProfilePic} alt={c.commenterName || 'Commenter'} className="w-full h-full object-cover rounded-full" />
                                     ) : (c.commenterName?.charAt(0)?.toUpperCase() || '?')}
                                 </Link>
                                 <div className="flex-1 min-w-0">

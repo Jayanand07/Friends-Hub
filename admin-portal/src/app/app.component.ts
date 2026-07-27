@@ -298,8 +298,13 @@ export class AppComponent implements OnInit {
   }
 
   loadData() {
-    this.analyticsService.getOverview().subscribe(res => {
-      this.data = res;
+    this.analyticsService.getOverview().subscribe({
+      next: (res) => {
+        this.data = res;
+      },
+      error: (err) => {
+        console.error('Failed to load analytics data', err);
+      }
     });
   }
 }

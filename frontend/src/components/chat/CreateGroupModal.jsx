@@ -30,7 +30,7 @@ export default function CreateGroupModal({ onClose, onCreated }) {
                 setAllUsers(users);
                 setResults(users);
             })
-            .catch(() => { })
+            .catch(() => toast.error('Failed to load user suggestions'))
             .finally(() => setLoadingUsers(false));
     }, []);
 

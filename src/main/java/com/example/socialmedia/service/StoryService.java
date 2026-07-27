@@ -56,6 +56,7 @@ public class StoryService {
                 story.getCreatedAt(), story.getExpiresAt(), 0, false);
     }
 
+    @Transactional(readOnly = true)
     public List<StoryUserResponse> getActiveStories(String currentEmail) {
         User currentUser = userRepository.findByEmail(currentEmail)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
@@ -127,6 +128,7 @@ public class StoryService {
         }
     }
 
+    @Transactional(readOnly = true)
     public List<FollowUserResponse> getStoryViewers(Long storyId, String requesterEmail) {
         Story story = storyRepository.findById(storyId)
                 .orElseThrow(() -> new RuntimeException("Story not found"));
@@ -139,10 +141,20 @@ public class StoryService {
         }
 
         List<StoryView> views = storyViewRepository.findByStoryId(storyId);
+
+        // Batch load all UserInfo records for viewers in a single query (fixes N+1)
+        List<Long> viewerIds = views.stream().map(v -> v.getViewer().getId()).collect(Collectors.toList());
+        java.util.Map<Long, UserInfo> userInfoMap = new java.util.HashMap<>();
+        if (!viewerIds.isEmpty()) {
+            userInfoRepository.findByUserIdIn(viewerIds).forEach(ui -> userInfoMap.put(ui.getUser().getId(), ui));
+        }
+
         return views.stream().map(v -> {
             User viewer = v.getViewer();
-            String name = getDisplayName(viewer);
-            UserInfo info = userInfoRepository.findByUser(viewer).orElse(null);
+            UserInfo info = userInfoMap.get(viewer.getId());
+            String name = info != null && info.getFirstName() != null
+                    ? info.getFirstName() + (info.getLastName() != null ? " " + info.getLastName() : "")
+                    : viewer.getEmail().split("@")[0];
             String pic = info != null ? info.getProfilePicUrl() : null;
             return new FollowUserResponse(viewer.getId(), name, pic);
         }).collect(Collectors.toList());
@@ -164,8 +176,11 @@ public class StoryService {
     }
 
     private StoryUserResponse buildUserStories(User user, List<Story> stories, User currentUser) {
-        String name = getDisplayName(user);
-        UserInfo info = userInfoRepository.findByUser(user).orElse(null);
+        // Use lazy-loaded relationship instead of separate repository query
+        UserInfo info = user.getUserInfo();
+        String name = info != null && info.getFirstName() != null
+                ? info.getFirstName() + (info.getLastName() != null ? " " + info.getLastName() : "")
+                : "User#" + user.getId();
         String profilePic = info != null ? info.getProfilePicUrl() : null;
 
         // Batch query: get all view counts for these stories in 1 query (fixes N+1)
@@ -191,7 +206,8 @@ public class StoryService {
     }
 
     private String getDisplayName(User user) {
-        UserInfo info = userInfoRepository.findByUser(user).orElse(null);
+        // Use lazy-loaded relationship instead of a separate repository query
+        UserInfo info = user.getUserInfo();
         if (info != null && info.getFirstName() != null) {
             return info.getFirstName() + (info.getLastName() != null ? " " + info.getLastName() : "");
         }

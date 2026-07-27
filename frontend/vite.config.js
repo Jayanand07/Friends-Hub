@@ -5,9 +5,35 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
 
+  server: {
+    // Proxy API and WebSocket calls to the Spring Boot backend
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/ws': {
+        target: 'http://localhost:8080',
+        ws: true,
+      },
+    },
+    // Set security headers in dev mode (production should use reverse proxy)
+    headers: {
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+    },
+  },
+
   build: {
     // Warn if any chunk is over 400KB (helps catch bundle bloat)
     chunkSizeWarningLimit: 400,
+
+    // Do not emit source maps in production builds
+    sourcemap: false,
+
+    // Inline assets smaller than 4KB as base64 to reduce HTTP requests
+    assetsInlineLimit: 4096,
 
     rollupOptions: {
       output: {
@@ -22,28 +48,16 @@ export default defineConfig({
           // don't invalidate this chunk
           'motion': ['framer-motion'],
 
-          // All UI component libraries together
-          'ui-vendor': [
-            '@radix-ui/react-avatar',
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-dropdown-menu',
-            'lucide-react',
-            'class-variance-authority',
-            'clsx',
-            'tailwind-merge',
-          ],
+          // Icon library used across many components
+          'icons': ['lucide-react'],
 
           // WebSocket / real-time libraries
           'realtime': ['@stomp/stompjs', 'sockjs-client'],
 
-          // Date utilities
+          // Date + HTTP utilities
           'utils': ['date-fns', 'axios'],
         },
       },
     },
   },
-
-  // Enable source maps for production debugging (optional but useful)
-  // Remove this line if you want smaller builds:
-  // build: { sourcemap: true },
 })

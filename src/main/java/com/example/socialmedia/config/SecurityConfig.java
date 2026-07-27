@@ -21,6 +21,8 @@ import org.springframework.security.config.Customizer;
 import java.util.ArrayList;
 import java.util.List;
 
+import jakarta.annotation.PostConstruct;
+
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -37,10 +39,31 @@ public class SecurityConfig {
         this.authenticationProvider = authenticationProvider;
     }
 
+    /**
+     * Validates security-critical configuration values at startup.
+     * Fail-fast: if APP_FRONTEND_URL is misconfigured as a wildcard,
+     * the application refuses to start rather than silently allowing
+     * any origin via CORS.
+     */
+    @PostConstruct
+    public void validateConfig() {
+        if ("*".equals(frontendUrl)) {
+            throw new IllegalStateException(
+                "STARTUP FAILED: app.frontend-url (APP_FRONTEND_URL) " +
+                "must not be set to '*'. This would bypass CORS protection " +
+                "and allow any website to make authenticated requests. " +
+                "Set it to your actual frontend domain.");
+        }
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                // CSRF disabled because this is a stateless REST API using JWT bearer tokens.
+                // The server does not rely on session cookies for authentication — every request
+                // carries its own token in the Authorization header. Without browser-managed
+                // sessions, there is no session to forge, making CSRF attacks inapplicable.
                 .csrf(AbstractHttpConfigurer::disable)
                 .headers(headers -> headers
                     .frameOptions(frame -> frame.deny())
@@ -76,12 +99,16 @@ public class SecurityConfig {
                 "https://friendshub.me",
                 "https://www.friendshub.me"
         ));
-        if (frontendUrl != null && !frontendUrl.isBlank()) {
+        if (frontendUrl != null && !frontendUrl.isBlank() && !frontendUrl.equals("*")) {
             origins.add(frontendUrl);
         }
         config.setAllowedOrigins(origins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
+        // Explicit headers required because setAllowCredentials(true) means
+        // browsers reject wildcard "*" for Access-Control-Allow-Headers per the Fetch spec.
+        config.setAllowedHeaders(List.of(
+                "Authorization", "Content-Type", "X-Requested-With",
+                "Accept", "Origin", "Cache-Control"));
         config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

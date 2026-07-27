@@ -19,7 +19,7 @@ const ScrollToTop = () => {
   };
 
   return (
-    <div className="fixed bottom-24 right-6 z-40 lg:bottom-6 lg:z-50 flex flex-col gap-3">
+    <div className="fixed bottom-24 right-6 z-50 flex flex-col gap-3">
       <button
         onClick={scrollToTop}
         aria-label="Scroll to top"

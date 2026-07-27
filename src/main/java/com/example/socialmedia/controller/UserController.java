@@ -14,8 +14,11 @@ import com.example.socialmedia.dto.UserProfileResponse;
 import com.example.socialmedia.service.FriendRequestAnalyticsService;
 import com.example.socialmedia.service.SupabaseStorageService;
 import com.example.socialmedia.service.UserService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -24,6 +27,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
+@Validated
 public class UserController {
 
     private final UserService userService;
@@ -51,14 +55,14 @@ public class UserController {
 
     @PutMapping("/profile")
     public ResponseEntity<UserProfileResponse> updateProfile(
-            @RequestBody UserProfileRequest request,
+            @Valid @RequestBody UserProfileRequest request,
             Authentication authentication) {
         return ResponseEntity.ok(userService.updateProfile(authentication.getName(), request));
     }
 
     @PutMapping("/profile/settings")
     public ResponseEntity<UserProfileResponse> updateProfileSettings(
-            @RequestBody UserProfileRequest request,
+            @Valid @RequestBody UserProfileRequest request,
             Authentication authentication) {
         return ResponseEntity.ok(userService.updateProfileSettings(authentication.getName(), request));
     }
@@ -173,9 +177,9 @@ public class UserController {
 
     @GetMapping("/search")
     public ResponseEntity<List<SearchUserResponse>> searchUsers(
-            @RequestParam(defaultValue = "") String query,
-            @RequestParam(defaultValue = "") String location,
-            @RequestParam(defaultValue = "") String bio,
+            @RequestParam(defaultValue = "") @Size(max = 200, message = "Query cannot exceed 200 characters") String query,
+            @RequestParam(defaultValue = "") @Size(max = 100, message = "Location cannot exceed 100 characters") String location,
+            @RequestParam(defaultValue = "") @Size(max = 500, message = "Bio search cannot exceed 500 characters") String bio,
             @RequestParam(defaultValue = "false") boolean mutualOnly,
             @RequestParam(defaultValue = "relevance") String sort,
             Authentication authentication) {
@@ -204,7 +208,7 @@ public class UserController {
 
     @PutMapping("/me/public-key")
     public ResponseEntity<MessageResponse> updatePublicKey(
-            @RequestBody PublicKeyRequest request,
+            @Valid @RequestBody PublicKeyRequest request,
             Authentication authentication) {
         userService.updatePublicKey(authentication.getName(), request.getPublicKey());
         return ResponseEntity.ok(new MessageResponse("Public key updated"));

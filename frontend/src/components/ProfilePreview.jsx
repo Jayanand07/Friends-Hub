@@ -36,6 +36,12 @@ export default function ProfilePreview() {
     const [refreshing, setRefreshing] = useState(false);
     const [followed, setFollowed] = useState(new Set());
     const candidatePoolRef = useRef([]);
+    const followedRef = useRef(new Set());
+
+    // Keep followedRef in sync with followed state
+    useEffect(() => {
+        followedRef.current = followed;
+    }, [followed]);
 
     useEffect(() => {
         getProfile().then(res => setProfile(res.data)).catch(() => { });
@@ -61,8 +67,11 @@ export default function ProfilePreview() {
         if (isRefresh) {
             setRefreshing(true);
             if (candidatePoolRef.current.length > 5) {
-                const freshFive = pickFiveDifferent(candidatePoolRef.current, recommendations, followed);
-                setRecommendations(freshFive);
+                setRecommendations(prev => {
+                    const freshFive = pickFiveDifferent(candidatePoolRef.current, prev, followedRef.current);
+                    return freshFive;
+                });
+                return;
             }
         } else {
             setLoading(true);
@@ -72,23 +81,27 @@ export default function ProfilePreview() {
             const res = await getRecommendations();
             const data = Array.isArray(res.data) ? res.data : [];
             candidatePoolRef.current = data;
-            setRecommendations(prev => pickFiveDifferent(data, isRefresh ? prev : [], followed));
+            setRecommendations(prev => pickFiveDifferent(data, isRefresh ? prev : [], followedRef.current));
         } catch {
             if (!isRefresh) setRecommendations([]);
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [followed, pickFiveDifferent, recommendations]);
+    }, [pickFiveDifferent]);
 
     useEffect(() => { loadRecommendations(); }, []);
 
     const handleFollow = async (userId) => {
-        setFollowed(prev => new Set([...prev, userId]));
+        setFollowed(prev => {
+            const next = new Set(prev);
+            next.add(userId);
+            return next;
+        });
         setTimeout(() => {
             setRecommendations(prev => {
                 const remaining = prev.filter(r => r.id !== userId);
-                const unused = candidatePoolRef.current.filter(c => c.id !== userId && !followed.has(c.id) && !remaining.some(r => r.id === c.id));
+                const unused = candidatePoolRef.current.filter(c => c.id !== userId && !followedRef.current.has(c.id) && !remaining.some(r => r.id === c.id));
                 if (unused.length > 0 && remaining.length < 5) {
                     const randomPick = unused[Math.floor(Math.random() * unused.length)];
                     return [...remaining, randomPick];
@@ -129,7 +142,7 @@ export default function ProfilePreview() {
                     </div>
                     <div className="min-w-0">
                         <p className="text-[14px] font-semibold text-[var(--text-primary)] truncate group-hover:underline">{displayName}</p>
-                        <p className="text-[13px] text-[var(--text-muted)] truncate">@{user?.email?.split('@')[0]}</p>
+                        <p className="text-[13px] text-[var(--text-muted)] truncate">@{displayName || 'user'}</p>
                     </div>
                 </Link>
 
@@ -189,7 +202,7 @@ export default function ProfilePreview() {
                                         <div className="flex items-center gap-1.5 flex-wrap">
                                             <Link to={`/profile/${rec.id}`}>
                                                 <p className="text-[13px] font-semibold text-[var(--text-primary)] truncate hover:underline">
-                                                    {rec.name || rec.email?.split('@')[0]}
+                                                    {rec.name || 'Suggested User'}
                                                 </p>
                                             </Link>
                                             <MatchBadge score={rec.matchScore} />

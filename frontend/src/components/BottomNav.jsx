@@ -12,9 +12,14 @@ export default function BottomNav({ onCreatePost }) {
                 setHasUnreadMsg(true);
             }
         };
+        const handleRead = () => setHasUnreadMsg(false);
         window.addEventListener('unreadChatMessage', handleUnread);
-        return () => window.removeEventListener('unreadChatMessage', handleUnread);
-    }, [location.pathname]);
+        window.addEventListener('chatMessagesRead', handleRead);
+        return () => {
+            window.removeEventListener('unreadChatMessage', handleUnread);
+            window.removeEventListener('chatMessagesRead', handleRead);
+        };
+    }, []);
 
     useEffect(() => {
         if (location.pathname.startsWith('/chat')) {

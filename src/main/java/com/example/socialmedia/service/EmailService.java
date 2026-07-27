@@ -56,17 +56,17 @@ public class EmailService {
     // -------------------------------------------------------------------------
 
     public boolean sendVerificationEmail(String toEmail, String token, String firstName) {
-        log.info("Preparing verification email for {}", toEmail);
+        log.info("Preparing verification email for {}", maskEmail(toEmail));
         String verifyLink = verificationUrl + "?token=" + token;
         String subject   = "Verify your FriendsHub account, " + firstName + "!";
         String htmlBody  = buildVerificationHtml(firstName, verifyLink);
 
         boolean sent = sendHtmlEmail(toEmail, subject, htmlBody);
         if (!sent) {
-            log.warn("Verification email FAILED to send to {}. Token was logged server-side for debugging only.", toEmail);
+            log.warn("Verification email FAILED to send to {}. Token was logged server-side for debugging only.", maskEmail(toEmail));
             log.debug("Verification link (visible only at DEBUG level): {}", verifyLink);
         } else {
-            log.info("Verification email successfully sent to {}", toEmail);
+            log.info("Verification email successfully sent to {}", maskEmail(toEmail));
         }
         return sent;
     }
@@ -76,17 +76,17 @@ public class EmailService {
     // -------------------------------------------------------------------------
 
     public boolean sendPasswordResetEmail(String toEmail, String token) {
-        log.info("Preparing password reset email for {}", toEmail);
+        log.info("Preparing password reset email for {}", maskEmail(toEmail));
         String resetLink = resetPasswordUrl + "?token=" + token;
         String subject   = "Reset your FriendsHub password";
         String htmlBody  = buildPasswordResetHtml(resetLink);
 
         boolean sent = sendHtmlEmail(toEmail, subject, htmlBody);
         if (!sent) {
-            log.warn("Password reset email FAILED to send to {}.", toEmail);
+            log.warn("Password reset email FAILED to send to {}.", maskEmail(toEmail));
             log.debug("Password reset link (DEBUG level only): {}", resetLink);
         } else {
-            log.info("Password reset email successfully sent to {}", toEmail);
+            log.info("Password reset email successfully sent to {}", maskEmail(toEmail));
         }
         return sent;
     }
@@ -96,7 +96,7 @@ public class EmailService {
     // -------------------------------------------------------------------------
 
     public boolean sendOtpEmail(String toEmail, String otp) {
-        log.info("Preparing OTP email for {}", toEmail);
+        log.info("Preparing OTP email for {}", maskEmail(toEmail));
         try {
             String encodedEmail = java.net.URLEncoder.encode(toEmail, java.nio.charset.StandardCharsets.UTF_8);
             // SECURITY: OTP is NOT included in the URL — only in the email body.
@@ -107,14 +107,14 @@ public class EmailService {
 
             boolean sent = sendHtmlEmail(toEmail, subject, htmlBody);
             if (!sent) {
-                log.warn("OTP email FAILED to send to {}. OTP stored in Redis/DB only.", toEmail);
-                log.debug("OTP (DEBUG level only) for {}: {}", toEmail, otp);
+                log.warn("OTP email FAILED to send to {}. OTP stored in Redis/DB only.", maskEmail(toEmail));
+                log.debug("OTP (DEBUG level only) for {}: {}", maskEmail(toEmail), otp);
             } else {
-                log.info("OTP email successfully sent to {}", toEmail);
+                log.info("OTP email successfully sent to {}", maskEmail(toEmail));
             }
             return sent;
         } catch (Exception e) {
-            log.error("Failed to prepare OTP email for {}: {}", toEmail, e.getMessage(), e);
+            log.error("Failed to prepare OTP email for {}: {}", maskEmail(toEmail), e.getMessage(), e);
             return false;
         }
     }
@@ -138,13 +138,13 @@ public class EmailService {
             }
         }
 
-        log.warn("Email service is unconfigured or failed for recipient: {}", toEmail);
+        log.warn("Email service is unconfigured or failed for recipient: {}", maskEmail(toEmail));
         return false;
     }
 
     private boolean sendViaResend(String toEmail, String subject, String htmlBody) {
+        java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
         try {
-            java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
             String from = (fromAddress != null && !fromAddress.isBlank() && !"noreply@friendshub.me".equals(fromAddress))
                     ? fromAddress
                     : "FriendsHub <onboarding@resend.dev>";
@@ -166,7 +166,7 @@ public class EmailService {
 
             java.net.http.HttpResponse<String> resp = client.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
             if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
-                log.info("Email sent via Resend API to {}", toEmail);
+                log.info("Email sent via Resend API to {}", maskEmail(toEmail));
                 return true;
             } else {
                 log.error("Resend API returned status {}: {}", resp.statusCode(), resp.body());
@@ -197,10 +197,10 @@ public class EmailService {
             helper.setText(htmlBody, true);
 
             javaMailSender.send(message);
-            log.info("Email sent via SMTP to {}", toEmail);
+            log.info("Email sent via SMTP to {}", maskEmail(toEmail));
             return true;
         } catch (Exception e) {
-            log.error("Failed to send email via SMTP to {}: {}", toEmail, e.getMessage(), e);
+            log.error("Failed to send email via SMTP to {}: {}", maskEmail(toEmail), e.getMessage(), e);
             return false;
         }
     }
@@ -501,6 +501,17 @@ public class EmailService {
                    .replace(">", "&gt;")
                    .replace("\"", "&quot;")
                    .replace("'", "&#x27;");
+    }
+
+    /**
+     * Mask email for logging: shows first character and domain only.
+     * e.g. "user@example.com" -> "u*****@example.com"
+     */
+    private String maskEmail(String email) {
+        if (email == null || email.isBlank()) return email;
+        int atIdx = email.indexOf('@');
+        if (atIdx <= 1) return email;
+        return email.charAt(0) + "*****" + email.substring(atIdx);
     }
 }
 

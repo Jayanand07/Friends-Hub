@@ -36,20 +36,28 @@ public class PostController {
     @PostMapping("/upload-image")
     public ResponseEntity<?> uploadImage(@RequestParam("image") MultipartFile image,
             Authentication authentication) {
-        // SECURITY: Track which user uploaded this image
+        // SECURITY: Track which user uploaded this image without logging PII
         String userEmail = authentication != null ? authentication.getName() : "anonymous";
-        log.info("Image upload initiated by user: {}", userEmail);
+        String maskedEmail = maskEmail(userEmail);
+        log.info("Image upload initiated by user: {}", maskedEmail);
         try {
             String imageUrl = storageService.uploadImage(image);
-            log.info("Image upload successful for user: {}, url: {}", userEmail, imageUrl);
+            log.info("Image upload successful for user: {}, url: {}", maskedEmail, imageUrl);
             return ResponseEntity.ok(Map.of("imageUrl", imageUrl));
         } catch (IllegalArgumentException e) {
-            log.warn("Image upload rejected for user {}: {}", userEmail, e.getMessage());
+            log.warn("Image upload rejected for user {}: {}", maskedEmail, e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
-            log.error("Image upload failed for user {}: {}", userEmail, e.getMessage());
+            log.error("Image upload failed for user {}: {}", maskedEmail, e.getMessage());
             return ResponseEntity.internalServerError().body(Map.of("message", "Upload failed: " + e.getMessage()));
         }
+    }
+
+    private String maskEmail(String email) {
+        if (email == null || email.isBlank() || "anonymous".equals(email)) return email;
+        int atIdx = email.indexOf('@');
+        if (atIdx <= 1) return email;
+        return email.charAt(0) + "*****" + email.substring(atIdx);
     }
 
     @PostMapping

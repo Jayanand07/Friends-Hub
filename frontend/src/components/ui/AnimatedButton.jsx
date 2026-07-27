@@ -16,7 +16,7 @@ export default function AnimatedButton({ children, onClick, variant = 'primary',
             whileTap={{ scale: disabled ? 1 : 0.98 }}
             onClick={onClick}
             disabled={disabled}
-            className={`${baseStyles} ${variants[variant]} ${disabled ? 'opacity-50 cursor-not-allowed grayscale' : 'cursor-pointer'} ${className} px-5 py-2.5`}
+            className={`${baseStyles} ${variants[variant] || variants.primary} ${disabled ? 'opacity-50 cursor-not-allowed grayscale' : 'cursor-pointer'} ${className} px-5 py-2.5`}
         >
             {Icon && <Icon size={18} strokeWidth={2.5} />}
             <span className="relative z-10">{children}</span>

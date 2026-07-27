@@ -10,8 +10,8 @@ public class PostResponse {
     private String imageUrl;
     private String authorName;
     private Long authorId;
-    private int likeCount;
-    private int commentCount;
+    private long likeCount;
+    private long commentCount;
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'", timezone = "UTC")
     private LocalDateTime createdAt;
     private boolean isLiked;
@@ -22,13 +22,13 @@ public class PostResponse {
     public PostResponse() {
     }
 
-    public PostResponse(Long id, String content, String imageUrl, String authorName, Long authorId, int likeCount,
-            int commentCount, LocalDateTime createdAt, boolean isLiked) {
+    public PostResponse(Long id, String content, String imageUrl, String authorName, Long authorId, long likeCount,
+            long commentCount, LocalDateTime createdAt, boolean isLiked) {
         this(id, content, imageUrl, authorName, authorId, likeCount, commentCount, createdAt, isLiked, false);
     }
 
-    public PostResponse(Long id, String content, String imageUrl, String authorName, Long authorId, int likeCount,
-            int commentCount, LocalDateTime createdAt, boolean isLiked, boolean isSaved) {
+    public PostResponse(Long id, String content, String imageUrl, String authorName, Long authorId, long likeCount,
+            long commentCount, LocalDateTime createdAt, boolean isLiked, boolean isSaved) {
         this.id = id;
         this.content = content;
         this.imageUrl = imageUrl;
@@ -82,19 +82,19 @@ public class PostResponse {
         this.authorId = authorId;
     }
 
-    public int getLikeCount() {
+    public long getLikeCount() {
         return likeCount;
     }
 
-    public void setLikeCount(int likeCount) {
+    public void setLikeCount(long likeCount) {
         this.likeCount = likeCount;
     }
 
-    public int getCommentCount() {
+    public long getCommentCount() {
         return commentCount;
     }
 
-    public void setCommentCount(int commentCount) {
+    public void setCommentCount(long commentCount) {
         this.commentCount = commentCount;
     }
 
@@ -132,8 +132,8 @@ public class PostResponse {
         private String imageUrl;
         private String authorName;
         private Long authorId;
-        private int likeCount;
-        private int commentCount;
+        private long likeCount;
+        private long commentCount;
         private LocalDateTime createdAt;
         private boolean isLiked;
         private boolean isSaved;
@@ -166,12 +166,12 @@ public class PostResponse {
             return this;
         }
 
-        public PostResponseBuilder likeCount(int likeCount) {
+        public PostResponseBuilder likeCount(long likeCount) {
             this.likeCount = likeCount;
             return this;
         }
 
-        public PostResponseBuilder commentCount(int commentCount) {
+        public PostResponseBuilder commentCount(long commentCount) {
             this.commentCount = commentCount;
             return this;
         }

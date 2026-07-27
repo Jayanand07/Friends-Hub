@@ -31,7 +31,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
            "     OR LOWER(ui.lastName) LIKE LOWER(CONCAT('%', :query, '%')) " +
            "     OR LOWER(u.email) LIKE LOWER(CONCAT('%', :query, '%'))) " +
            "AND (:location IS NULL OR :location = '' OR LOWER(ui.location) LIKE LOWER(CONCAT('%', :location, '%'))) " +
-           "AND (:bio IS NULL OR :bio = '' OR LOWER(ui.bio) LIKE LOWER(CONCAT('%', :bio, '%')))")
+           "AND (:bio IS NULL OR :bio = '' OR LOWER(ui.bio) LIKE LOWER(CONCAT('%', :bio, '%'))) " +
+           "ORDER BY u.createdAt DESC")
     List<User> searchUsers(@Param("requesterId") Long requesterId,
                            @Param("query") String query,
                            @Param("location") String location,

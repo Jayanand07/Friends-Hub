@@ -9,20 +9,17 @@ import CreatePostModal from '../components/CreatePostModal';
 import SkeletonPost from '../components/SkeletonPost';
 import StoriesBar from '../components/StoriesBar';
 import InfiniteScrollWrapper from '../components/ui/InfiniteScrollWrapper';
-
-let feedCache = {
-    posts: [],
-    page: 0,
-    hasMore: true
-};
+import { useToast } from '../components/Toast';
 
 export default function HomePage() {
     const { user } = useAuth();
     const { setShowCreate: setLayoutCreate } = useOutletContext() || {};
-    const [posts, setPosts] = useState(feedCache.posts);
-    const [page, setPage] = useState(feedCache.page);
-    const [hasMore, setHasMore] = useState(feedCache.hasMore);
-    const [loading, setLoading] = useState(feedCache.posts.length === 0);
+    const toast = useToast();
+    const feedCacheRef = useRef({ posts: [], page: 0, hasMore: true });
+    const [posts, setPosts] = useState([]);
+    const [page, setPage] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     const [showCreate, setShowCreate] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
@@ -33,7 +30,7 @@ export default function HomePage() {
         if (fetchingRef.current) return;
         fetchingRef.current = true;
 
-        if (!append && feedCache.posts.length === 0) setLoading(true);
+        if (!append && feedCacheRef.current.posts.length === 0) setLoading(true);
         else if (append) setLoadingMore(true);
 
         try {
@@ -51,7 +48,7 @@ export default function HomePage() {
                     updated = [...prev, ...unique];
                 }
                 if (pageNum === 0) {
-                    feedCache = { posts: updated, page: pageNum, hasMore: nextHasMore };
+                    feedCacheRef.current = { posts: updated, page: pageNum, hasMore: nextHasMore };
                 }
                 return updated;
             });
@@ -59,6 +56,7 @@ export default function HomePage() {
             setHasMore(nextHasMore);
         } catch (err) {
             console.error(err);
+            toast.error('Failed to load feed. Check your connection.');
         } finally {
             setLoading(false);
             setLoadingMore(false);
@@ -83,7 +81,7 @@ export default function HomePage() {
     const handleDelete = (id) => {
         setPosts((prev) => {
             const updated = prev.filter((p) => p.id !== id);
-            feedCache.posts = updated;
+            feedCacheRef.current.posts = updated;
             return updated;
         });
     };
@@ -93,13 +91,13 @@ export default function HomePage() {
             const updated = prev.map((p) =>
                 p.id === postId ? { ...p, isLiked: newIsLiked, liked: newIsLiked, likeCount: newLikeCount, likesCount: newLikeCount } : p
             );
-            feedCache.posts = updated;
+            feedCacheRef.current.posts = updated;
             return updated;
         });
     };
 
     const handleRefresh = () => {
-        feedCache = { posts: [], page: 0, hasMore: true };
+        feedCacheRef.current = { posts: [], page: 0, hasMore: true };
         setRefreshing(true);
         fetchPosts(0);
     };
@@ -159,7 +157,6 @@ export default function HomePage() {
                         <PostCard
                             key={post.id}
                             post={post}
-                            currentEmail={user?.email}
                             currentUserId={user?.id}
                             onDelete={handleDelete}
                             onLikeToggle={handleLikeToggle}

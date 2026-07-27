@@ -131,6 +131,14 @@ public class ChatGroupService {
             throw new RuntimeException("Group member limit of 50 reached");
         }
 
+        // SECURITY: Block check — reject if the new member has blocked (or is blocked by) any existing member
+        for (User existingMember : group.getMembers()) {
+            if (blockRepo.existsByBlockerAndBlocked(userToAdd, existingMember) ||
+                    blockRepo.existsByBlockerAndBlocked(existingMember, userToAdd)) {
+                throw new RuntimeException("Cannot add user " + userId + " to group due to block relationship");
+            }
+        }
+
         group.getMembers().add(userToAdd);
         if (groupKeys != null && !groupKeys.isEmpty()) {
             group.setGroupKeys(groupKeys);
@@ -250,7 +258,7 @@ public class ChatGroupService {
         if (info != null && info.getFirstName() != null) {
             return info.getFirstName() + (info.getLastName() != null ? " " + info.getLastName() : "");
         }
-        return user.getEmail().split("@")[0];
+        return "User#" + user.getId();
     }
 
     private UserProfileResponse toUserProfileResponse(User user) {

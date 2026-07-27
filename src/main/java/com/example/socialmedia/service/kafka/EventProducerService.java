@@ -52,11 +52,19 @@ public class EventProducerService {
 
         future.whenComplete((result, ex) -> {
             if (ex != null) {
-                log.error("Email event failed for {}: {}", event.getTo(), ex.getMessage());
+                log.error("Email event failed for {}: {}", maskEmail(event.getTo()), ex.getMessage());
             } else {
-                log.debug("Email event sent successfully to {}", event.getTo());
+                log.debug("Email event sent successfully to {}", maskEmail(event.getTo()));
             }
         });
+    }
+
+    /** Mask email for logging: e.g. "user@example.com" -> "u*****@example.com" */
+    private static String maskEmail(String email) {
+        if (email == null || email.isBlank()) return email;
+        int atIdx = email.indexOf('@');
+        if (atIdx <= 1) return email;
+        return email.charAt(0) + "*****" + email.substring(atIdx);
     }
 
     public void sendActivityEvent(Long userId, String action, Long resourceId) {

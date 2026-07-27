@@ -1,19 +1,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, CheckCheck, Trash2, Image as ImageIcon } from 'lucide-react';
-
-function timeAgo(dateStr) {
-    if (!dateStr) return '';
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return '';
-    const diff = Date.now() - date.getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'now';
-    if (mins < 60) return `${mins}m`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h`;
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-}
+import timeAgo from '../../utils/timeAgo';
+import { isSafeUrl } from '../../utils/sanitize';
 
 export default function MessageBubble({ message, isOwn, onDelete }) {
     const [showMenu, setShowMenu] = useState(false);
@@ -54,7 +43,11 @@ export default function MessageBubble({ message, isOwn, onDelete }) {
                             src={message.imageUrl}
                             alt="Shared"
                             className="max-w-full max-h-60 object-cover rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
-                            onClick={() => window.open(message.imageUrl, '_blank')}
+                            onClick={() => {
+                                if (isSafeUrl(message.imageUrl)) {
+                                    window.open(message.imageUrl, '_blank', 'noopener,noreferrer');
+                                }
+                            }}
                         />
                     </div>
                 )}

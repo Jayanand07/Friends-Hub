@@ -9,6 +9,7 @@ export default function InfiniteScrollWrapper({ children, onLoadMore, hasMore, l
     }, [onLoadMore]);
 
     useEffect(() => {
+        const el = observerTarget.current;
         const observer = new IntersectionObserver(
             entries => {
                 if (entries[0].isIntersecting && hasMore && !loading) {
@@ -18,13 +19,13 @@ export default function InfiniteScrollWrapper({ children, onLoadMore, hasMore, l
             { threshold: 0.1 }
         );
 
-        if (observerTarget.current) {
-            observer.observe(observerTarget.current);
+        if (el) {
+            observer.observe(el);
         }
 
         return () => {
-            if (observerTarget.current) {
-                observer.unobserve(observerTarget.current);
+            if (el) {
+                observer.unobserve(el);
             }
         };
     }, [hasMore, loading]);
