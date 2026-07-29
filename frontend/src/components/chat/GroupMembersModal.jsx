@@ -72,7 +72,7 @@ export default function GroupMembersModal({ groupId, onClose, currentUser }) {
                                                 <img src={member.profilePicUrl} className="w-full h-full object-cover" />
                                             ) : (
                                                 <div className="w-full h-full flex items-center justify-center font-bold text-[var(--text-muted)]">
-                                                    {(member.firstName?.[0] || member.email?.[0]).toUpperCase()}
+                                                    {(member.firstName ? member.firstName[0] : (member.email ? member.email[0] : '?')).toUpperCase()}
                                                 </div>
                                             )}
                                         </div>

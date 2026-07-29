@@ -83,7 +83,9 @@ export default function GroupChatWindow({ group, currentUser, onBack, refreshGro
                                 }
                             }
                         }
-                    } catch (e) { }
+                    } catch (e) {
+                        console.warn("Group key resolution failed:", e);
+                    }
                 }
 
                 const decryptedArray = await Promise.all(
