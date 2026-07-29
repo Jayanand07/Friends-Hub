@@ -2,10 +2,14 @@ import { supabase } from "../lib/supabaseClient";
 
 export const GoogleLoginButton = () => {
   const handleGoogleLogin = async () => {
+    // Generate cryptographic state parameter to mitigate OAuth login CSRF attacks
+    const state = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    sessionStorage.setItem("oauth_state", state);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: { state }
       }
     });
     if (error) console.error("Google login error:", error);
