@@ -10,8 +10,8 @@ public class UserProfileRequest {
     private String lastName;
     @Size(max = 500, message = "Bio cannot exceed 500 characters")
     private String bio;
-    private String profilePicUrl;
     @Size(max = 200, message = "Website URL cannot exceed 200 characters")
+    @Pattern(regexp = "^(https?://).*$", message = "Website must start with http:// or https://")
     private String website;
     @Size(max = 100, message = "Location cannot exceed 100 characters")
     private String location;
@@ -44,14 +44,6 @@ public class UserProfileRequest {
 
     public void setBio(String bio) {
         this.bio = bio;
-    }
-
-    public String getProfilePicUrl() {
-        return profilePicUrl;
-    }
-
-    public void setProfilePicUrl(String profilePicUrl) {
-        this.profilePicUrl = profilePicUrl;
     }
 
     public String getWebsite() {

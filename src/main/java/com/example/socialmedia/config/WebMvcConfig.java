@@ -1,15 +1,14 @@
 package com.example.socialmedia.config;
 
+import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-/**
- * Registers the ApiMetricsInterceptor for all API paths.
- * This is what was missing in Copilot's version — without this,
- * the interceptor would never fire.
- */
+import java.util.List;
+
 @Component
 public class WebMvcConfig implements WebMvcConfigurer {
 
@@ -24,5 +23,12 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(apiMetricsInterceptor)
                 .addPathPatterns("/api/**")
                 .excludePathPatterns("/actuator/**");
+    }
+
+    @Override
+    public void addArgumentResolvers(@NonNull List<HandlerMethodArgumentResolver> resolvers) {
+        PageableHandlerMethodArgumentResolver resolver = new PageableHandlerMethodArgumentResolver();
+        resolver.setMaxPageSize(100);
+        resolvers.add(resolver);
     }
 }

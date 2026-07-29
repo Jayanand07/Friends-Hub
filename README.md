@@ -2,7 +2,7 @@
 
 <div align="center">
 
-  <h3>A Polyglot Microservices Social Platform built with Spring Boot, Node.js + Express, MongoDB Atlas, Angular, React, Redis, Kafka, and Supabase.</h3>
+  <h3>A Polyglot Microservices Social Platform built with Spring Boot, Node.js + Express, MongoDB Atlas, Angular, React, Redis, and Supabase.</h3>
 
   <p>
     <a href="https://www.friendshub.me"><strong>Live App</strong></a>
@@ -51,7 +51,6 @@ flowchart LR
     api --> db["Supabase PostgreSQL"]
     nodeApi --> mongodb["MongoDB Atlas"]
     api --> redis["Upstash Redis"]
-    api --> kafka["Upstash Kafka"]
 ```
 
 
@@ -64,7 +63,7 @@ flowchart LR
 | Database | PostgreSQL on Supabase |
 | Media | Supabase Storage |
 | Cache and presence | Redis / Upstash Redis |
-| Async processing | Kafka / Upstash Kafka |
+| Async processing | Spring @Async task executor |
 | Auth | JWT, BCrypt, Google OAuth, email verification |
 | Monitoring | Spring Actuator, Micrometer, Prometheus endpoint |
 | Deployment | Render backend, Vercel frontend, Docker-ready backend |
@@ -74,7 +73,7 @@ flowchart LR
 ```text
 .
 +-- src/main/java/com/example/socialmedia
-|   +-- config          # Security, Redis, Kafka, WebSocket, metrics, rate limiting
+|   +-- config          # Security, Redis, WebSocket, metrics, rate limiting
 |   +-- controller      # REST API controllers
 |   +-- dto             # Request and response payloads
 |   +-- entity          # JPA entities and enums
@@ -89,7 +88,7 @@ flowchart LR
 |   +-- src/context     # Auth and theme providers
 |   +-- src/pages       # App routes
 |   +-- src/lib         # Supabase client
-+-- docker-compose.yml    # Local Redis, Kafka, and Kafka UI
++-- docker-compose.yml    # Local Redis container
 +-- Dockerfile            # Backend production image
 +-- fix_rls_security.sql  # Supabase Row Level Security policies
 ```
@@ -134,7 +133,7 @@ cp .env.example .env
 cp frontend/.env.example frontend/.env
 ```
 
-Set the required values for Supabase, JWT, mail, Redis, Kafka, and frontend API URL. Never commit real secrets.
+Set the required values for Supabase, JWT, mail, Redis, and frontend API URL. Never commit real secrets.
 
 ### 3. Start local infrastructure
 
@@ -147,8 +146,6 @@ Local services:
 | Service | URL |
 | --- | --- |
 | Redis | `localhost:6379` |
-| Kafka | `localhost:9092` |
-| Kafka UI | `http://localhost:8090` |
 
 ### 4. Run the backend
 
@@ -193,10 +190,6 @@ Frontend URL: `http://localhost:5173`
 | `APP_VERIFICATION_URL` | Email verification page URL |
 | `APP_RESET_PASSWORD_URL` | Password reset page URL |
 | `REDIS_URL` | Redis connection string |
-| `KAFKA_SERVERS` | Kafka bootstrap servers |
-| `KAFKA_SECURITY_PROTOCOL` | Kafka security protocol for hosted Kafka |
-| `KAFKA_SASL_MECHANISM` | Kafka SASL mechanism |
-| `KAFKA_SASL_JAAS_CONFIG` | Kafka SASL JAAS config |
 
 ### Frontend
 
@@ -237,7 +230,7 @@ npm run build
 - Method-level security with role-aware endpoints.
 - Sliding-window rate limiting with API visibility headers.
 - Redis cache TTLs per domain: feed, posts, profiles, and stories.
-- Kafka retry handling and dead-letter topic support.
+- Non-blocking asynchronous notifications and email processing with Spring @Async task executor.
 - Hardened error responses with stack traces disabled.
 - CORS restricted by configured frontend origin.
 - Supabase RLS support via `fix_rls_security.sql`.
@@ -269,7 +262,7 @@ npm run lint
 - [x] Posts, stories, comments, reactions, follows, blocks, and profiles
 - [x] Private and group chat
 - [x] Redis caching, presence, and token blacklist
-- [x] Kafka-backed notifications and email jobs
+- [x] Asynchronous notifications and email jobs powered by Spring @Async
 - [x] Admin moderation and audit logs
 - [x] Prometheus-ready actuator metrics
 - [ ] AI-assisted feed ranking

@@ -55,7 +55,8 @@ public class EmailService {
     // Verification Email
     // -------------------------------------------------------------------------
 
-    public boolean sendVerificationEmail(String toEmail, String token, String firstName) {
+    @Async("taskExecutor")
+    public void sendVerificationEmail(String toEmail, String token, String firstName) {
         log.info("Preparing verification email for {}", maskEmail(toEmail));
         String verifyLink = verificationUrl + "?token=" + token;
         String subject   = "Verify your FriendsHub account, " + firstName + "!";
@@ -68,14 +69,14 @@ public class EmailService {
         } else {
             log.info("Verification email successfully sent to {}", maskEmail(toEmail));
         }
-        return sent;
     }
 
     // -------------------------------------------------------------------------
     // Password Reset Email
     // -------------------------------------------------------------------------
 
-    public boolean sendPasswordResetEmail(String toEmail, String token) {
+    @Async("taskExecutor")
+    public void sendPasswordResetEmail(String toEmail, String token) {
         log.info("Preparing password reset email for {}", maskEmail(toEmail));
         String resetLink = resetPasswordUrl + "?token=" + token;
         String subject   = "Reset your FriendsHub password";
@@ -88,14 +89,14 @@ public class EmailService {
         } else {
             log.info("Password reset email successfully sent to {}", maskEmail(toEmail));
         }
-        return sent;
     }
 
     // -------------------------------------------------------------------------
     // OTP Email
     // -------------------------------------------------------------------------
 
-    public boolean sendOtpEmail(String toEmail, String otp) {
+    @Async("taskExecutor")
+    public void sendOtpEmail(String toEmail, String otp) {
         log.info("Preparing OTP email for {}", maskEmail(toEmail));
         try {
             String encodedEmail = java.net.URLEncoder.encode(toEmail, java.nio.charset.StandardCharsets.UTF_8);
@@ -112,10 +113,8 @@ public class EmailService {
             } else {
                 log.info("OTP email successfully sent to {}", maskEmail(toEmail));
             }
-            return sent;
         } catch (Exception e) {
             log.error("Failed to prepare OTP email for {}: {}", maskEmail(toEmail), e.getMessage(), e);
-            return false;
         }
     }
 
@@ -149,13 +148,13 @@ public class EmailService {
                     ? fromAddress
                     : "FriendsHub <onboarding@resend.dev>";
 
-            String jsonPayload = String.format(
-                "{\"from\":\"%s\",\"to\":[\"%s\"],\"subject\":\"%s\",\"html\":\"%s\"}",
-                escapeJson(from),
-                escapeJson(toEmail),
-                escapeJson(subject),
-                escapeJson(htmlBody)
-            );
+            com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            String jsonPayload = objectMapper.writeValueAsString(java.util.Map.of(
+                "from", from,
+                "to", java.util.List.of(toEmail),
+                "subject", subject,
+                "html", htmlBody
+            ));
 
             java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
                     .uri(java.net.URI.create("https://api.resend.com/emails"))
@@ -493,14 +492,9 @@ public class EmailService {
                "</body></html>";
     }
 
-    // Basic HTML entity escaping to prevent XSS in email content
     private String escapeHtml(String text) {
         if (text == null) return "";
-        return text.replace("&", "&amp;")
-                   .replace("<", "&lt;")
-                   .replace(">", "&gt;")
-                   .replace("\"", "&quot;")
-                   .replace("'", "&#x27;");
+        return org.apache.commons.text.StringEscapeUtils.escapeHtml4(text);
     }
 
     /**

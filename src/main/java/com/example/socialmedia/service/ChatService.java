@@ -66,7 +66,8 @@ public class ChatService {
             throw new RuntimeException("Cannot send message: user is blocked");
         }
 
-        ChatMessage message = new ChatMessage(sender, receiver, content);
+        String cleanContent = iv != null ? content : com.example.socialmedia.util.HtmlSanitizerUtil.sanitize(content);
+        ChatMessage message = new ChatMessage(sender, receiver, cleanContent);
         message.setIv(iv);
         message.setImageUrl(imageUrl);
         ChatMessage saved = chatRepo.save(message);

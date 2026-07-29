@@ -38,4 +38,6 @@ public interface FollowRepository extends JpaRepository<Follow, Long> {
 
     @Query("SELECT f.following FROM Follow f LEFT JOIN FETCH f.following.userInfo WHERE f.follower.id = :userId")
     List<User> findFollowingWithUserInfoByFollowerId(@Param("userId") Long userId);
+
+    void deleteByFollowerOrFollowing(User follower, User following);
 }

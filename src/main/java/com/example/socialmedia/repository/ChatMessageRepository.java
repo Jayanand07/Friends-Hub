@@ -37,4 +37,6 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
                         "AND m.timestamp >= :since GROUP BY FUNCTION('DAYOFWEEK', m.timestamp)")
         List<Object[]> countByDayOfWeek(@Param("user1") User user1, @Param("user2") User user2,
                         @Param("since") java.time.LocalDateTime since);
+
+        void deleteBySenderOrReceiver(User sender, User receiver);
 }

@@ -25,6 +25,7 @@ public class Notification {
     @Column(nullable = false)
     private NotificationType type;
 
+    @jakarta.validation.constraints.Size(max = 500, message = "Notification content cannot exceed 500 characters")
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content;
 

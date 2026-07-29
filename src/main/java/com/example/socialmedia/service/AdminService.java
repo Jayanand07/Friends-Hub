@@ -5,6 +5,8 @@ import com.example.socialmedia.dto.FollowUserResponse;
 import com.example.socialmedia.entity.*;
 import com.example.socialmedia.repository.*;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,28 +21,38 @@ public class AdminService {
     private final PostRepository postRepository;
     private final CommentRepository commentRepository;
     private final BlockRepository blockRepository;
+    private final FollowRepository followRepository;
+    private final NotificationRepository notificationRepository;
+    private final ChatMessageRepository chatMessageRepository;
     private final AdminActionLogRepository adminActionLogRepository;
+    private final SupabaseStorageService supabaseStorageService;
 
     public AdminService(UserRepository userRepository, PostRepository postRepository,
             CommentRepository commentRepository, BlockRepository blockRepository,
-            AdminActionLogRepository adminActionLogRepository) {
+            FollowRepository followRepository, NotificationRepository notificationRepository,
+            ChatMessageRepository chatMessageRepository, AdminActionLogRepository adminActionLogRepository,
+            SupabaseStorageService supabaseStorageService) {
         this.userRepository = userRepository;
         this.postRepository = postRepository;
         this.commentRepository = commentRepository;
         this.blockRepository = blockRepository;
+        this.followRepository = followRepository;
+        this.notificationRepository = notificationRepository;
+        this.chatMessageRepository = chatMessageRepository;
         this.adminActionLogRepository = adminActionLogRepository;
+        this.supabaseStorageService = supabaseStorageService;
     }
 
     @Transactional(readOnly = true)
-    public List<FollowUserResponse> getAllUsers() {
-        return userRepository.findAll().stream()
+    public Page<FollowUserResponse> getAllUsers(Pageable pageable) {
+        return userRepository.findAll(pageable)
                 .map(u -> {
                     String name = u.getUserInfo() != null
-                            ? (u.getUserInfo().getFirstName() + " " + u.getUserInfo().getLastName())
+                            ? (u.getUserInfo().getFirstName() + " " + (u.getUserInfo().getLastName() != null ? u.getUserInfo().getLastName() : ""))
                             : u.getEmail();
                     String pic = u.getUserInfo() != null ? u.getUserInfo().getProfilePicUrl() : null;
-                    return new FollowUserResponse(u.getId(), name, pic);
-                }).collect(Collectors.toList());
+                    return new FollowUserResponse(u.getId(), name.trim(), pic);
+                });
     }
 
     @Transactional
@@ -51,6 +63,13 @@ public class AdminService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         logAction(admin, "DELETE_USER", userId, null, "Deleted user ID: " + userId);
+
+        // Cascading deletion of related records to prevent FK constraint crashes
+        followRepository.deleteByFollowerOrFollowing(target, target);
+        blockRepository.deleteByBlockerOrBlocked(target, target);
+        notificationRepository.deleteByUserOrActor(target, target);
+        chatMessageRepository.deleteBySenderOrReceiver(target, target);
+
         userRepository.delete(target);
         return "User deleted";
     }
@@ -87,6 +106,12 @@ public class AdminService {
                 .orElseThrow(() -> new UsernameNotFoundException("Admin not found"));
         Post post = postRepository.findById(postId)
                 .orElseThrow(() -> new RuntimeException("Post not found"));
+
+        if (post.getImageUrl() != null && !post.getImageUrl().isBlank()) {
+            try {
+                supabaseStorageService.deleteImage(post.getImageUrl());
+            } catch (Exception ignored) {}
+        }
 
         logAction(admin, "DELETE_POST", post.getUser().getId(), postId, "Deleted post #" + postId);
         postRepository.delete(post);

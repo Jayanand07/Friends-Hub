@@ -11,6 +11,7 @@ import com.example.socialmedia.dto.RegisterRequest;
 import com.example.socialmedia.entity.User;
 import com.example.socialmedia.entity.UserInfo;
 import com.example.socialmedia.entity.VerificationStatus;
+import com.example.socialmedia.repository.RefreshTokenRepository;
 import com.example.socialmedia.repository.UserInfoRepository;
 import com.example.socialmedia.repository.UserRepository;
 import com.example.socialmedia.security.JwtService;
@@ -62,9 +63,12 @@ public class AuthService {
     @org.springframework.beans.factory.annotation.Value("${app.google.client-id:}")
     private String googleClientId;
 
+    private final RefreshTokenRepository refreshTokenRepository;
+
     public AuthService(UserRepository userRepository, UserInfoRepository userInfoRepository,
             PasswordEncoder passwordEncoder, JwtService jwtService, AuthenticationManager authenticationManager,
-            EmailService emailService, ExternalApiService externalApiService) {
+            EmailService emailService, ExternalApiService externalApiService,
+            RefreshTokenRepository refreshTokenRepository) {
         this.userRepository = userRepository;
         this.userInfoRepository = userInfoRepository;
         this.passwordEncoder = passwordEncoder;
@@ -72,6 +76,7 @@ public class AuthService {
         this.authenticationManager = authenticationManager;
         this.emailService = emailService;
         this.externalApiService = externalApiService;
+        this.refreshTokenRepository = refreshTokenRepository;
     }
 
     @Transactional
@@ -107,9 +112,8 @@ public class AuthService {
 
         userInfoRepository.save(userInfo);
 
-        boolean emailSent = false;
         try {
-            emailSent = emailService.sendVerificationEmail(savedUser.getEmail(), rawToken, request.getFirstName());
+            emailService.sendVerificationEmail(savedUser.getEmail(), rawToken, request.getFirstName());
         } catch (Exception e) {
             org.slf4j.LoggerFactory.getLogger(AuthService.class).warn("Email dispatch error: {}", e.getMessage());
         }
@@ -117,14 +121,6 @@ public class AuthService {
         try {
             externalApiService.notifyUserRegistered(savedUser);
         } catch (Exception ignored) {}
-
-        if (!emailSent) {
-            savedUser.setVerificationStatus(VerificationStatus.VERIFIED);
-            savedUser.setVerificationToken(null);
-            savedUser.setTokenExpiry(null);
-            userRepository.save(savedUser);
-            return "Registration successful! Account auto-verified. You can log in now.";
-        }
 
         return "User registered successfully. Please check your email to verify your account.";
     }
@@ -187,12 +183,8 @@ public class AuthService {
         var user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
-        // Auto-verify user if valid credentials were provided
         if (user.getVerificationStatus() != VerificationStatus.VERIFIED) {
-            user.setVerificationStatus(VerificationStatus.VERIFIED);
-            user.setVerificationToken(null);
-            user.setTokenExpiry(null);
-            userRepository.save(user);
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Please verify your email before logging in.");
         }
 
         var jwtToken = jwtService.generateToken(new org.springframework.security.core.userdetails.User(
@@ -202,8 +194,11 @@ public class AuthService {
                         user.getRole().name()))),
                 user.getId());
 
+        String refreshToken = createAndSaveRefreshToken(user.getEmail());
+
         return AuthResponse.builder()
                 .token(jwtToken)
+                .refreshToken(refreshToken)
                 .build();
     }
 
@@ -256,17 +251,10 @@ public class AuthService {
                 org.slf4j.LoggerFactory.getLogger(AuthService.class).warn("Redis OTP save bypass: {}", e.getMessage());
             }
 
-            boolean emailSent = false;
             try {
-                emailSent = emailService.sendOtpEmail(normalizedEmail, otp);
+                emailService.sendOtpEmail(normalizedEmail, otp);
             } catch (Exception e) {
                 org.slf4j.LoggerFactory.getLogger(AuthService.class).warn("OTP email dispatch error: {}", e.getMessage());
-            }
-
-            if (!emailSent) {
-                // SECURITY: Never leak OTP in response. Log server-side only.
-                log.warn("OTP email failed for {}. OTP stored in Redis/DB only.", maskEmail(normalizedEmail));
-                return "If that email exists, an OTP has been sent.";
             }
         }
         return "If that email exists, an OTP has been sent.";
@@ -313,48 +301,45 @@ public class AuthService {
 
     @Transactional
     public AuthResponse googleLogin(OAuthRequest request) {
-        String verifiedEmail = null;
-        String verifiedName = null;
-
         String idToken = request.getIdToken();
-        if (idToken != null && !idToken.isBlank()) {
-            // Verify the Google ID token signature using Google's public keys (JWKS)
-            try {
-                io.jsonwebtoken.Claims claims = GoogleTokenVerifier.verify(idToken);
-                verifiedEmail = claims.get("email", String.class);
-                verifiedName = claims.get("name", String.class);
-                Object emailVerifiedObj = claims.get("email_verified");
-                boolean emailVerified = Boolean.TRUE.equals(emailVerifiedObj) || "true".equalsIgnoreCase(String.valueOf(emailVerifiedObj));
-
-                if (verifiedEmail == null || verifiedEmail.isBlank()) {
-                    throw new RuntimeException("Google ID token does not contain an email");
-                }
-                if (!emailVerified) {
-                    throw new RuntimeException("Google email is not verified");
-                }
-
-                // Validate issuer
-                String iss = claims.getIssuer();
-                if (iss != null && !(iss.equals("https://accounts.google.com") || iss.equals("accounts.google.com"))) {
-                    throw new RuntimeException("Invalid Google ID token issuer: " + iss);
-                }
-            } catch (Exception e) {
-                log.warn("Google ID token verification failed: {} — falling back to OAuth request params", e.getMessage());
-            }
+        if (idToken == null || idToken.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Google ID token is required");
         }
 
-        // Fallback to request email if idToken was not provided or verification fell back
-        if (verifiedEmail == null || verifiedEmail.isBlank()) {
-            if (request.getEmail() == null || request.getEmail().isBlank()) {
-                throw new RuntimeException("Email is required for Google login");
+        String verifiedEmail;
+        String verifiedName;
+
+        // Verify the Google ID token signature using Google's public keys (JWKS)
+        try {
+            io.jsonwebtoken.Claims claims = GoogleTokenVerifier.verify(idToken);
+            verifiedEmail = claims.get("email", String.class);
+            verifiedName = claims.get("name", String.class);
+            Object emailVerifiedObj = claims.get("email_verified");
+            boolean emailVerified = Boolean.TRUE.equals(emailVerifiedObj) || "true".equalsIgnoreCase(String.valueOf(emailVerifiedObj));
+
+            if (verifiedEmail == null || verifiedEmail.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Google ID token does not contain an email");
             }
-            verifiedEmail = request.getEmail();
+            if (!emailVerified) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Google email is not verified");
+            }
+
+            // Validate issuer
+            String iss = claims.getIssuer();
+            if (iss != null && !(iss.equals("https://accounts.google.com") || iss.equals("accounts.google.com"))) {
+                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid Google ID token issuer: " + iss);
+            }
+        } catch (ResponseStatusException rse) {
+            throw rse;
+        } catch (Exception e) {
+            log.error("Google ID token verification failed: {}", e.getMessage());
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Google authentication failed: " + e.getMessage());
         }
 
         // Use VERIFIED email from token, NOT from request body
         verifiedEmail = verifiedEmail.trim().toLowerCase();
         if (verifiedName == null || verifiedName.isBlank()) {
-            verifiedName = request.getName();
+            verifiedName = request.getName() != null ? request.getName() : "User";
         }
 
         Optional<User> existingUser = userRepository.findByEmail(verifiedEmail);
@@ -370,6 +355,9 @@ public class AuthService {
             user.setAuthProvider(AuthProvider.GOOGLE);
 
             String slugified = verifiedName.toLowerCase().replaceAll("[^a-z0-9]", "");
+            if (slugified.isBlank()) {
+                slugified = "user-" + UUID.randomUUID().toString().substring(0, 8);
+            }
             user.setUsername(slugified);
 
             user = userRepository.save(user);
@@ -387,7 +375,9 @@ public class AuthService {
                         user.getRole().name()))),
                 user.getId());
 
-        return AuthResponse.builder().token(jwtToken).build();
+        String refreshToken = createAndSaveRefreshToken(user.getEmail());
+
+        return AuthResponse.builder().token(jwtToken).refreshToken(refreshToken).build();
     }
 
     /**
@@ -432,11 +422,11 @@ public class AuthService {
             }
 
             // Verify the JWT signature and parse claims using jjwt
-            return Jwts.parserBuilder()
-                    .setSigningKey(publicKey)
+            return Jwts.parser()
+                    .verifyWith(publicKey)
                     .build()
-                    .parseClaimsJws(idToken)
-                    .getBody();
+                    .parseSignedClaims(idToken)
+                    .getPayload();
         }
 
         private static String extractKid(String headerJson) {
@@ -532,18 +522,55 @@ public class AuthService {
         }
     }
 
-    public AuthResponse refreshToken(String email) {
-        var user = userRepository.findByEmail(email)
+    @Transactional
+    public String createAndSaveRefreshToken(String userEmail) {
+        String rawToken = UUID.randomUUID().toString() + UUID.randomUUID().toString();
+        String hash = hashToken(rawToken);
+        com.example.socialmedia.entity.RefreshToken refreshToken = new com.example.socialmedia.entity.RefreshToken(
+                hash, userEmail, java.time.LocalDateTime.now().plusDays(7));
+        refreshTokenRepository.save(refreshToken);
+        return rawToken;
+    }
+
+    @Transactional
+    public AuthResponse refreshToken(String rawRefreshToken) {
+        if (rawRefreshToken == null || rawRefreshToken.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Refresh token is required");
+        }
+        String hash = hashToken(rawRefreshToken);
+        com.example.socialmedia.entity.RefreshToken tokenEntity = refreshTokenRepository.findByTokenHash(hash)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid refresh token"));
+
+        if (tokenEntity.getExpiryDate().isBefore(java.time.LocalDateTime.now())) {
+            refreshTokenRepository.delete(tokenEntity);
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token expired");
+        }
+
+        String email = tokenEntity.getUserEmail();
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
-        var jwtToken = jwtService.generateToken(new org.springframework.security.core.userdetails.User(
+
+        // Rotate refresh token
+        refreshTokenRepository.delete(tokenEntity);
+        String newRefreshToken = createAndSaveRefreshToken(email);
+
+        var newAccessToken = jwtService.generateToken(new org.springframework.security.core.userdetails.User(
                 user.getEmail(),
                 user.getPassword(),
                 java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(
                         user.getRole().name()))),
                 user.getId());
+
         return AuthResponse.builder()
-                .token(jwtToken)
+                .token(newAccessToken)
+                .refreshToken(newRefreshToken)
                 .build();
+    }
+
+    @org.springframework.scheduling.annotation.Scheduled(cron = "0 0 2 * * *")
+    @Transactional
+    public void purgeExpiredRefreshTokens() {
+        refreshTokenRepository.deleteByExpiryDateBefore(java.time.LocalDateTime.now());
     }
 
     private String hashToken(String rawToken) {

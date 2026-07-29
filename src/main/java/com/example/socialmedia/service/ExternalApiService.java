@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
  * 
  * SECURITY FIX (H-5): Removed all external HTTP calls that were leaking
  * user-generated content (post bodies, user IDs) to jsonplaceholder.typicode.com.
- * Now logs events internally only. Use Kafka EventProducerService for async processing.
+ * Now logs events internally only. Use @Async services for async processing.
  */
 @Service
 public class ExternalApiService {

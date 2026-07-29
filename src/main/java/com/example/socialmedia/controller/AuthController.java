@@ -1,19 +1,16 @@
 package com.example.socialmedia.controller;
 
-import com.example.socialmedia.dto.AuthResponse;
-import com.example.socialmedia.dto.MessageResponse;
-import com.example.socialmedia.dto.LoginRequest;
-import com.example.socialmedia.dto.RegisterRequest;
+import com.example.socialmedia.dto.*;
 import com.example.socialmedia.security.JwtService;
 import com.example.socialmedia.service.AuthService;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -44,39 +41,28 @@ public class AuthController {
     }
 
     @PostMapping("/verify")
-    public ResponseEntity<?> verifyEmailPost(@RequestBody Map<String, String> body) {
-        if (body == null || body.get("token") == null || body.get("token").isBlank()) {
-            return ResponseEntity.badRequest().body(new MessageResponse("Token is required"));
-        }
-        return ResponseEntity.ok(new MessageResponse(authService.verifyAccount(body.get("token"))));
+    public ResponseEntity<?> verifyEmailPost(@Valid @RequestBody VerifyRequest request) {
+        return ResponseEntity.ok(new MessageResponse(authService.verifyAccount(request.getToken())));
     }
 
     @PostMapping("/forgot-password")
-    public ResponseEntity<?> forgotPassword(@RequestBody Map<String, String> body) {
-        if (body == null || body.get("email") == null || body.get("email").isBlank()) {
-            return ResponseEntity.badRequest().body(new MessageResponse("Email is required"));
-        }
-        return ResponseEntity.ok(new MessageResponse(authService.forgotPassword(body.get("email"))));
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        return ResponseEntity.ok(new MessageResponse(authService.forgotPassword(request.getEmail())));
     }
 
     @PostMapping("/reset-password")
-    public ResponseEntity<?> resetPassword(@RequestBody Map<String, String> body) {
-        if (body == null || body.get("email") == null || body.get("email").isBlank()
-                || body.get("otp") == null || body.get("otp").isBlank()
-                || body.get("newPassword") == null || body.get("newPassword").isBlank()) {
-            return ResponseEntity.badRequest().body(new MessageResponse("Email, OTP, and new password are required"));
-        }
-        return ResponseEntity.ok(new MessageResponse(authService.resetPassword(body.get("email"), body.get("otp"), body.get("newPassword"))));
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        return ResponseEntity.ok(new MessageResponse(authService.resetPassword(request.getEmail(), request.getOtp(), request.getNewPassword())));
     }
 
     @PostMapping("/oauth/google")
-    public ResponseEntity<AuthResponse> googleLogin(@Valid @RequestBody com.example.socialmedia.dto.OAuthRequest request) {
+    public ResponseEntity<AuthResponse> googleLogin(@Valid @RequestBody OAuthRequest request) {
         return ResponseEntity.ok(authService.googleLogin(request));
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<AuthResponse> refresh(org.springframework.security.core.Authentication authentication) {
-        return ResponseEntity.ok(authService.refreshToken(authentication.getName()));
+    public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        return ResponseEntity.ok(authService.refreshToken(request.getRefreshToken()));
     }
 
     @PostMapping("/logout")

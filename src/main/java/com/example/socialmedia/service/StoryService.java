@@ -154,12 +154,13 @@ public class StoryService {
             UserInfo info = userInfoMap.get(viewer.getId());
             String name = info != null && info.getFirstName() != null
                     ? info.getFirstName() + (info.getLastName() != null ? " " + info.getLastName() : "")
-                    : viewer.getEmail().split("@")[0];
+                    : "User#" + viewer.getId();
             String pic = info != null ? info.getProfilePicUrl() : null;
             return new FollowUserResponse(viewer.getId(), name, pic);
         }).collect(Collectors.toList());
     }
 
+    @org.springframework.scheduling.annotation.Scheduled(cron = "0 0 * * * *")
     @Transactional
     public void cleanupExpiredStories() {
         List<Story> expired = storyRepository.findAllByExpiresAtBefore(LocalDateTime.now());

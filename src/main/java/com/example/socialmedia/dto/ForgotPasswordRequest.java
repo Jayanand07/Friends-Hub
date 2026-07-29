@@ -5,15 +5,16 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 @Data
-public class OAuthRequest {
+public class ForgotPasswordRequest {
     @NotBlank(message = "Email is required")
     @Email(message = "Invalid email format")
     private String email;
-    private String name;
-    @NotBlank(message = "idToken is required")
-    private String idToken;
 
-    public String getEmail() { return email; }
-    public String getName() { return name; }
-    public String getIdToken() { return idToken; }
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
 }

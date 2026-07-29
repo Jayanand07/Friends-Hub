@@ -9,6 +9,7 @@ import com.example.socialmedia.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,11 +32,13 @@ public class NotificationService {
         this.messagingTemplate = messagingTemplate;
     }
 
+    @Async("taskExecutor")
     @Transactional
     public void createNotification(User targetUser, NotificationType type, String content, User actor) {
         createNotification(targetUser, type, content, actor, null);
     }
 
+    @Async("taskExecutor")
     @Transactional
     public void createNotification(User targetUser, NotificationType type, String content, User actor, Long postId) {
         // Don't notify yourself
@@ -43,7 +46,8 @@ public class NotificationService {
             return;
 
         try {
-            Notification notification = new Notification(targetUser, type, content, actor, postId);
+            String sanitizedContent = com.example.socialmedia.util.HtmlSanitizerUtil.sanitizeTextOnly(content);
+            Notification notification = new Notification(targetUser, type, sanitizedContent, actor, postId);
             notificationRepo.save(notification);
 
             // Push realtime via WebSocket

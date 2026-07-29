@@ -25,7 +25,7 @@ export default function LoginPage() {
         setLoading(true);
         try {
             const res = await login(form);
-            loginUser(res.data.token);
+            loginUser(res.data.token, res.data.refreshToken);
             toast.success('Welcome back! 🎉');
             navigate('/');
         } catch (err) {

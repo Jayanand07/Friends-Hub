@@ -16,8 +16,6 @@ import com.example.socialmedia.entity.Comment;
 import com.example.socialmedia.entity.SavedPost;
 import com.example.socialmedia.dto.CommentRequest;
 import com.example.socialmedia.dto.CommentResponse;
-import com.example.socialmedia.service.kafka.EventProducerService;
-import com.example.socialmedia.dto.kafka.NotificationEvent;
 
 import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.CacheEvict;
@@ -52,15 +50,13 @@ public class PostService {
         private final NotificationService notificationService;
         private final com.example.socialmedia.repository.FollowRepository followRepository;
         private final com.example.socialmedia.repository.BlockRepository blockRepository;
-        private final EventProducerService eventProducerService;
 
         public PostService(PostRepository postRepository, UserRepository userRepository,
                         LikeRepository likeRepository, CommentRepository commentRepository,
                         SavedPostRepository savedPostRepository,
                         ExternalApiService externalApiService, NotificationService notificationService,
                         com.example.socialmedia.repository.FollowRepository followRepository,
-                        com.example.socialmedia.repository.BlockRepository blockRepository,
-                        EventProducerService eventProducerService) {
+                        com.example.socialmedia.repository.BlockRepository blockRepository) {
                 this.postRepository = postRepository;
                 this.userRepository = userRepository;
                 this.likeRepository = likeRepository;
@@ -70,7 +66,6 @@ public class PostService {
                 this.notificationService = notificationService;
                 this.followRepository = followRepository;
                 this.blockRepository = blockRepository;
-                this.eventProducerService = eventProducerService;
         }
 
         @Transactional
@@ -84,7 +79,7 @@ public class PostService {
                                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
                 Post post = Post.builder()
-                                .content(request.getContent())
+                                .content(com.example.socialmedia.util.HtmlSanitizerUtil.sanitize(request.getContent()))
                                 .imageUrl(request.getImageUrl())
                                 .user(user)
                                 .build();
@@ -178,7 +173,7 @@ public class PostService {
                         like.setPost(post);
                         likeRepository.save(like);
 
-                        // Save in-app notification & push real-time STOMP
+                        // Save in-app notification & push real-time STOMP (asynchronously via @Async)
                         try {
                                 notificationService.createNotification(
                                         post.getUser(),
@@ -190,16 +185,6 @@ public class PostService {
                         } catch (Exception e) {
                                 log.warn("Failed to create like notification: {}", e.getMessage());
                         }
-
-                        // Send async notification via Kafka (non-blocking)
-                        sendNotificationEvent(
-                                post.getUser().getId(),
-                                "POST",
-                                "LIKE",
-                                user.getId(),
-                                postId,
-                                getDisplayName(user) + " liked your post"
-                        );
 
                         return "Post liked";
                 }
@@ -258,13 +243,13 @@ public class PostService {
                 }
 
                 Comment comment = new Comment();
-                comment.setContent(request.getContent());
+                comment.setContent(com.example.socialmedia.util.HtmlSanitizerUtil.sanitize(request.getContent()));
                 comment.setUser(user);
                 comment.setPost(post);
 
                 commentRepository.save(comment);
 
-                // Save in-app notification & push real-time STOMP
+                // Save in-app notification & push real-time STOMP (asynchronously via @Async)
                 try {
                         notificationService.createNotification(
                                 post.getUser(),
@@ -276,16 +261,6 @@ public class PostService {
                 } catch (Exception e) {
                         log.warn("Failed to create comment notification: {}", e.getMessage());
                 }
-
-                // Send async notification via Kafka (non-blocking)
-                sendNotificationEvent(
-                        post.getUser().getId(),
-                        "POST",
-                        "COMMENT",
-                        user.getId(),
-                        postId,
-                        getDisplayName(user) + " commented on your post"
-                );
         }
 
         @Transactional
@@ -446,18 +421,5 @@ public class PostService {
                                 .isLiked(isLiked)
                                 .isSaved(isSaved)
                                 .build();
-        }
-
-        // Helper to send async notification via Kafka
-        private void sendNotificationEvent(Long targetUserId, String resourceType,
-                        String type, Long actorId, Long resourceId, String content) {
-                try {
-                    eventProducerService.sendNotification(new NotificationEvent(
-                            type, actorId, targetUserId, resourceId, resourceType, content, Instant.now()
-                    ));
-                } catch (Exception e) {
-                        // Log but don't fail - Kafka is optional for notifications
-                        log.warn("Failed to send async notification: {}", e.getMessage());
-                }
         }
 }

@@ -18,12 +18,12 @@ export default function AuthCallback() {
         const res = await api.post("/auth/oauth/google", {
           email: user.email,
           name: user.user_metadata?.full_name || user.email.split("@")[0],
-          googleId: user.id,
           idToken: session?.provider_token || session?.access_token || null
         });
         
         const token = res.data.token;
-        loginUser(token);
+        const refreshToken = res.data.refreshToken;
+        loginUser(token, refreshToken);
         navigate("/", { replace: true });
       } catch (err) {
         console.error("Backend OAuth login failed:", err);

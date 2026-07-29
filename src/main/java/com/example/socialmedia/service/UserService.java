@@ -626,13 +626,10 @@ public class UserService {
         // SECURITY: Basic validation of public key format — must be a valid base64 string
         // of reasonable length for an ECDH P-256 raw public key (~44-512 chars).
         if (publicKey != null && !publicKey.isBlank()) {
-            if (publicKey.length() < 40 || publicKey.length() > 1024) {
-                throw new RuntimeException("Invalid public key length");
-            }
             try {
                 byte[] decoded = java.util.Base64.getDecoder().decode(publicKey);
-                if (decoded.length < 30 || decoded.length > 256) {
-                    throw new RuntimeException("Invalid public key data length");
+                if (decoded.length != 33 && decoded.length != 65 && decoded.length != 91) {
+                    throw new RuntimeException("Invalid ECDH P-256 public key length: expected 33, 65, or 91 bytes");
                 }
             } catch (IllegalArgumentException e) {
                 throw new RuntimeException("Public key is not valid base64");

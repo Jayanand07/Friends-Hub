@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to FriendsHub! 🎉
 
-FriendsHub is a full-stack social platform built with Spring Boot, React, Redis, Kafka, and Supabase. We welcome contributions from everyone, including bug fixes, feature improvements, documentation updates, UI enhancements, and testing support.
+FriendsHub is a full-stack social platform built with Spring Boot, React, Redis, and Supabase. We welcome contributions from everyone, including bug fixes, feature improvements, documentation updates, UI enhancements, and testing support.
 
 ## Table of Contents
 
