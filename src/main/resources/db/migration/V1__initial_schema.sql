@@ -33,3 +33,6 @@ ALTER TABLE public.chat_group_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chat_group_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.blocks             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_info          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.saved_posts          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.refresh_tokens        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.flyway_schema_history ENABLE ROW LEVEL SECURITY;
