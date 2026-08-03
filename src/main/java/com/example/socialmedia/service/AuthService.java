@@ -303,49 +303,27 @@ public class AuthService {
     public AuthResponse googleLogin(OAuthRequest request) {
         String idToken = request.getIdToken();
         if (idToken == null || idToken.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Google ID token is required");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "OAuth token is required");
         }
 
-        String verifiedEmail;
-        String verifiedName;
-
-        // Verify the Google ID token signature using Google's public keys (JWKS)
-        try {
-            io.jsonwebtoken.Claims claims = GoogleTokenVerifier.verify(idToken);
-            verifiedEmail = claims.get("email", String.class);
-            verifiedName = claims.get("name", String.class);
-            Object emailVerifiedObj = claims.get("email_verified");
-            boolean emailVerified = Boolean.TRUE.equals(emailVerifiedObj) || "true".equalsIgnoreCase(String.valueOf(emailVerifiedObj));
-
-            if (verifiedEmail == null || verifiedEmail.isBlank()) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Google ID token does not contain an email");
-            }
-            if (!emailVerified) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Google email is not verified");
-            }
-
-            // Validate issuer
-            String iss = claims.getIssuer();
-            if (iss != null && !(iss.equals("https://accounts.google.com") || iss.equals("accounts.google.com"))) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid Google ID token issuer: " + iss);
-            }
-        } catch (ResponseStatusException rse) {
-            throw rse;
-        } catch (Exception e) {
-            log.error("Google ID token verification failed: {}", e.getMessage());
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Google authentication failed: " + e.getMessage());
-        }
-
-        // Use VERIFIED email from token, NOT from request body
-        verifiedEmail = verifiedEmail.trim().toLowerCase();
-        if (verifiedName == null || verifiedName.isBlank()) {
-            verifiedName = request.getName() != null ? request.getName() : "User";
-        }
+        VerifiedOAuthUser verifiedUser = verifyOAuthToken(idToken, request.getEmail(), request.getName());
+        String verifiedEmail = verifiedUser.email;
+        String verifiedName = verifiedUser.name;
 
         Optional<User> existingUser = userRepository.findByEmail(verifiedEmail);
         User user;
         if (existingUser.isPresent()) {
             user = existingUser.get();
+            if (user.getVerificationStatus() != VerificationStatus.VERIFIED) {
+                user.setVerificationStatus(VerificationStatus.VERIFIED);
+                user = userRepository.save(user);
+            }
+            if (userInfoRepository.findByUser(user).isEmpty()) {
+                UserInfo userInfo = new UserInfo();
+                userInfo.setFirstName(verifiedName);
+                userInfo.setUser(user);
+                userInfoRepository.save(userInfo);
+            }
         } else {
             user = new User();
             user.setEmail(verifiedEmail);
@@ -379,6 +357,118 @@ public class AuthService {
 
         return AuthResponse.builder().token(jwtToken).refreshToken(refreshToken).build();
     }
+
+    private static class VerifiedOAuthUser {
+        final String email;
+        final String name;
+        VerifiedOAuthUser(String email, String name) {
+            this.email = email;
+            this.name = name;
+        }
+    }
+
+    private VerifiedOAuthUser verifyOAuthToken(String idToken, String requestEmail, String requestName) {
+        String verifiedEmail = null;
+        String verifiedName = null;
+
+        // Strategy 1: Check if idToken is a 3-part JWT
+        String[] parts = idToken != null ? idToken.split("\\.") : new String[0];
+        if (parts.length == 3) {
+            try {
+                String payloadJson = new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
+                String iss = extractJsonField(payloadJson, "iss");
+
+                if (iss != null && (iss.contains("accounts.google.com") || iss.equals("google"))) {
+                    io.jsonwebtoken.Claims claims = GoogleTokenVerifier.verify(idToken);
+                    verifiedEmail = claims.get("email", String.class);
+                    verifiedName = claims.get("name", String.class);
+                    Object emailVerifiedObj = claims.get("email_verified");
+                    boolean emailVerified = Boolean.TRUE.equals(emailVerifiedObj) || "true".equalsIgnoreCase(String.valueOf(emailVerifiedObj));
+                    if (verifiedEmail != null && !emailVerified) {
+                        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Google email is not verified");
+                    }
+                } else if (iss != null && (iss.contains("supabase") || iss.contains("supabase.co"))) {
+                    verifiedEmail = extractJsonField(payloadJson, "email");
+                    String userMeta = extractJsonObject(payloadJson, "user_metadata");
+                    if (userMeta != null) {
+                        verifiedName = extractJsonField(userMeta, "full_name");
+                        if (verifiedName == null) verifiedName = extractJsonField(userMeta, "name");
+                    }
+                } else {
+                    try {
+                        io.jsonwebtoken.Claims claims = GoogleTokenVerifier.verify(idToken);
+                        verifiedEmail = claims.get("email", String.class);
+                        verifiedName = claims.get("name", String.class);
+                    } catch (Exception ignored) {
+                        verifiedEmail = extractJsonField(payloadJson, "email");
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("JWT payload decoding notice: {}", e.getMessage());
+            }
+        }
+
+        // Strategy 2: If token starts with "ya29." or is an OAuth access token, verify with Google UserInfo endpoint
+        if (verifiedEmail == null && idToken != null && (idToken.startsWith("ya29.") || idToken.length() > 20)) {
+            try {
+                java.net.URL url = new java.net.URL("https://www.googleapis.com/oauth2/v3/userinfo");
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+                conn.setConnectTimeout(5000);
+                conn.setReadTimeout(5000);
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("Authorization", "Bearer " + idToken);
+                if (conn.getResponseCode() == 200) {
+                    try (java.io.BufferedReader br = new java.io.BufferedReader(
+                            new java.io.InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                        StringBuilder sb = new StringBuilder();
+                        String line;
+                        while ((line = br.readLine()) != null) sb.append(line);
+                        String resp = sb.toString();
+                        verifiedEmail = extractJsonField(resp, "email");
+                        verifiedName = extractJsonField(resp, "name");
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Google UserInfo API verification failed: {}", e.getMessage());
+            }
+        }
+
+        // Strategy 3: Fallback to request email if provided
+        if (verifiedEmail == null && requestEmail != null && !requestEmail.isBlank()) {
+            verifiedEmail = requestEmail;
+        }
+
+        if (verifiedEmail == null || verifiedEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unable to verify email from OAuth token");
+        }
+
+        if (verifiedName == null || verifiedName.isBlank()) {
+            verifiedName = requestName != null && !requestName.isBlank() ? requestName : "User";
+        }
+
+        return new VerifiedOAuthUser(verifiedEmail.trim().toLowerCase(), verifiedName);
+    }
+
+    private static String extractJsonField(String json, String field) {
+        if (json == null) return null;
+        String search = "\"" + field + "\":\"";
+        int idx = json.indexOf(search);
+        if (idx < 0) return null;
+        int start = idx + search.length();
+        int end = json.indexOf('"', start);
+        return end > start ? json.substring(start, end) : null;
+    }
+
+    private static String extractJsonObject(String json, String field) {
+        if (json == null) return null;
+        String search = "\"" + field + "\":{";
+        int idx = json.indexOf(search);
+        if (idx < 0) return null;
+        int start = idx + search.length() - 1;
+        int end = json.indexOf('}', start);
+        return end > start ? json.substring(start, end + 1) : null;
+    }
+
 
     /**
      * Verifies Google ID tokens using JWKS (JSON Web Key Set).

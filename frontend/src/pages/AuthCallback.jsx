@@ -18,7 +18,7 @@ export default function AuthCallback() {
         const res = await api.post("/auth/oauth/google", {
           email: user.email,
           name: user.user_metadata?.full_name || user.email.split("@")[0],
-          idToken: session?.provider_token || session?.access_token || null
+          idToken: session?.access_token || session?.provider_token || null
         });
         
         const token = res.data.token;
