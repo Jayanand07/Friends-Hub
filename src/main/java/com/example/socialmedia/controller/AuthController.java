@@ -56,7 +56,7 @@ public class AuthController {
     }
 
     @PostMapping("/oauth/google")
-    public ResponseEntity<AuthResponse> googleLogin(@Valid @RequestBody OAuthRequest request) {
+    public ResponseEntity<AuthResponse> googleLogin(@RequestBody OAuthRequest request) {
         return ResponseEntity.ok(authService.googleLogin(request));
     }
 

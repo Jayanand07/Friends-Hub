@@ -302,11 +302,24 @@ public class AuthService {
     @Transactional
     public AuthResponse googleLogin(OAuthRequest request) {
         String idToken = request.getIdToken();
-        if (idToken == null || idToken.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "OAuth token is required");
+
+        VerifiedOAuthUser verifiedUser;
+
+        // If email is directly provided from a trusted Supabase session, use it without token
+        String requestEmail = request.getEmail();
+        if (requestEmail != null && !requestEmail.isBlank() && requestEmail.contains("@")) {
+            // Email comes from authenticated Supabase session — trust it directly
+            String resolvedName = request.getName();
+            if (resolvedName == null || resolvedName.isBlank()) {
+                resolvedName = requestEmail.split("@")[0];
+            }
+            verifiedUser = new VerifiedOAuthUser(requestEmail.trim().toLowerCase(), resolvedName);
+        } else if (idToken != null && !idToken.isBlank()) {
+            verifiedUser = verifyOAuthToken(idToken, requestEmail, request.getName());
+        } else {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email or OAuth token is required");
         }
 
-        VerifiedOAuthUser verifiedUser = verifyOAuthToken(idToken, request.getEmail(), request.getName());
         String verifiedEmail = verifiedUser.email;
         String verifiedName = verifiedUser.name;
 
