@@ -50,10 +50,17 @@ public class NotificationService {
             Notification notification = new Notification(targetUser, type, sanitizedContent, actor, postId);
             notificationRepo.save(notification);
 
-            // Push realtime via WebSocket
+            // Push realtime via WebSocket (both direct topic and STOMP user queue)
+            NotificationDTO dto = toDTO(notification);
             messagingTemplate.convertAndSend(
                     "/queue/notifications-" + targetUser.getId(),
-                    toDTO(notification));
+                    dto);
+            if (targetUser.getEmail() != null) {
+                messagingTemplate.convertAndSendToUser(
+                        targetUser.getEmail(),
+                        "/queue/notifications",
+                        dto);
+            }
         } catch (Exception e) {
             log.warn("Failed to deliver notification/websocket: {}", e.getMessage());
         }
