@@ -451,23 +451,24 @@ public class AuthService {
 
     private static String extractJsonField(String json, String field) {
         if (json == null) return null;
-        String search = "\"" + field + "\":\"";
-        int idx = json.indexOf(search);
-        if (idx < 0) return null;
-        int start = idx + search.length();
-        int end = json.indexOf('"', start);
-        return end > start ? json.substring(start, end) : null;
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\"" + java.util.regex.Pattern.quote(field) + "\"\\s*:\\s*\"([^\"]+)\"");
+        java.util.regex.Matcher matcher = pattern.matcher(json);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
     }
 
     private static String extractJsonObject(String json, String field) {
         if (json == null) return null;
-        String search = "\"" + field + "\":{";
-        int idx = json.indexOf(search);
-        if (idx < 0) return null;
-        int start = idx + search.length() - 1;
-        int end = json.indexOf('}', start);
-        return end > start ? json.substring(start, end + 1) : null;
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\"" + java.util.regex.Pattern.quote(field) + "\"\\s*:\\s*(\\{[^\\}]+\\})");
+        java.util.regex.Matcher matcher = pattern.matcher(json);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
     }
+
 
 
     /**
