@@ -21,6 +21,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByEmail(String email);
 
+    boolean existsByUsername(String username);
+
+    Optional<User> findByUsername(String username);
+
+
     @Query("SELECT DISTINCT u FROM User u LEFT JOIN FETCH u.userInfo WHERE u.id != :userId AND u.id NOT IN (SELECT f.following.id FROM Follow f WHERE f.follower.id = :userId) AND u.id NOT IN (SELECT b.blocked.id FROM Block b WHERE b.blocker.id = :userId) AND u.id NOT IN (SELECT b.blocker.id FROM Block b WHERE b.blocked.id = :userId) AND u.verificationStatus = 'VERIFIED'")
     List<User> findSuggestedUsers(@Param("userId") Long userId, Pageable pageable);
 

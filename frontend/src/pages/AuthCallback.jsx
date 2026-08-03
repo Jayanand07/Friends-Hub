@@ -28,7 +28,9 @@ export default function AuthCallback() {
         const token = res.data.token;
         const refreshToken = res.data.refreshToken;
         loginUser(token, refreshToken);
-        navigate("/", { replace: true });
+        
+        // Use clean window redirect to home page
+        window.location.href = "/";
       } catch (err) {
         console.error("Backend OAuth login failed:", err);
         processedRef.current = false;

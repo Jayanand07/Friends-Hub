@@ -332,11 +332,17 @@ public class AuthService {
             user.setRole(Role.ROLE_USER);
             user.setAuthProvider(AuthProvider.GOOGLE);
 
-            String slugified = verifiedName.toLowerCase().replaceAll("[^a-z0-9]", "");
-            if (slugified.isBlank()) {
-                slugified = "user-" + UUID.randomUUID().toString().substring(0, 8);
+            String baseSlug = verifiedName.toLowerCase().replaceAll("[^a-z0-9]", "");
+            if (baseSlug.isBlank()) {
+                baseSlug = "user";
             }
-            user.setUsername(slugified);
+            String candidateUsername = baseSlug;
+            int counter = 1;
+            while (userRepository.existsByUsername(candidateUsername)) {
+                candidateUsername = baseSlug + counter;
+                counter++;
+            }
+            user.setUsername(candidateUsername);
 
             user = userRepository.save(user);
 

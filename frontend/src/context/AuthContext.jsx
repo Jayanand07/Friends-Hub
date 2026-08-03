@@ -5,12 +5,14 @@ import { getOrCreateIdentity } from '../crypto/e2ee';
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-    const [token, setToken] = useState(localStorage.getItem('token'));
+    const [token, setToken] = useState(() => localStorage.getItem('token'));
     const [user, setUser] = useState(null);
 
+    const activeToken = token || localStorage.getItem('token');
+
     useEffect(() => {
-        if (token) {
-            const decoded = decodeToken(token);
+        if (activeToken) {
+            const decoded = decodeToken(activeToken);
             if (decoded) {
                 setUser({
                     email: decoded.sub,
@@ -27,7 +29,7 @@ export function AuthProvider({ children }) {
                 logout();
             }
         }
-    }, [token]);
+    }, [activeToken]);
 
     const loginUser = (jwt, refreshToken) => {
         localStorage.setItem('token', jwt);
@@ -45,8 +47,10 @@ export function AuthProvider({ children }) {
         setUser(null);
     };
 
+    const isAuthenticated = !!activeToken;
+
     return (
-        <AuthContext.Provider value={{ token, user, isAuthenticated: !!token, loginUser, logout }}>
+        <AuthContext.Provider value={{ token: activeToken, user, isAuthenticated, loginUser, logout }}>
             {children}
         </AuthContext.Provider>
     );
