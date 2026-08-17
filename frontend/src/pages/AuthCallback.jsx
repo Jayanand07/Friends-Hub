@@ -31,13 +31,10 @@ export default function AuthCallback() {
         // Hard redirect — ensures ProtectedRoute reads token from localStorage fresh
         window.location.replace("/");
       } catch (err) {
-        console.error("Backend OAuth login failed:", err.response?.data || err.message);
+        console.error("Backend OAuth login failed:", err);
         if (!isMounted) return;
         const msg = err.response?.data?.message || err.message || "OAuth login failed";
-        setStatusMsg(msg);
-        setTimeout(() => {
-          window.location.replace("/login");
-        }, 2000);
+        setStatusMsg(`Error: ${msg}`);
       }
     };
 
