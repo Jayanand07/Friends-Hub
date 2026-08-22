@@ -28,9 +28,6 @@ public class EmailService {
     @Value("${spring.mail.username:}")
     private String smtpUsername;
 
-    @Value("${resend.api.key:${RESEND_API_KEY:}}")
-    private String resendApiKey;
-
     // Display name shown to recipients — "FriendsHub"
     @Value("${app.mail.display-name:FriendsHub}")
     private String displayName;
@@ -101,17 +98,16 @@ public class EmailService {
         try {
             String encodedEmail = java.net.URLEncoder.encode(toEmail, java.nio.charset.StandardCharsets.UTF_8);
             // SECURITY: OTP is NOT included in the URL — only in the email body.
-            // This prevents leakage via browser history, Referer headers, and proxy logs.
             String resetLink = resetPasswordUrl + "?email=" + encodedEmail;
-            String subject = "Your Password Reset OTP - FriendsHub";
+            // Dynamic subject prevents Gmail from grouping different OTP requests into an old thread
+            String subject = "Your FriendsHub Password Reset Code: " + otp;
             String htmlBody = buildOtpAndResetLinkHtml(toEmail, otp, resetLink);
 
             boolean sent = sendHtmlEmail(toEmail, subject, htmlBody);
             if (!sent) {
-                log.warn("OTP email FAILED to send to {}. OTP stored in Redis/DB only.", maskEmail(toEmail));
-                log.debug("OTP (DEBUG level only) for {}: {}", maskEmail(toEmail), otp);
+                log.warn("OTP email could not be delivered to {}. OTP is saved in database.", maskEmail(toEmail));
             } else {
-                log.info("OTP email successfully sent to {}", maskEmail(toEmail));
+                log.info("OTP email successfully delivered via Gmail SMTP to {}", maskEmail(toEmail));
             }
         } catch (Exception e) {
             log.error("Failed to prepare OTP email for {}: {}", maskEmail(toEmail), e.getMessage(), e);
@@ -119,75 +115,15 @@ public class EmailService {
     }
 
     // -------------------------------------------------------------------------
-    // Core send method
+    // Core send method (Gmail SMTP)
     // -------------------------------------------------------------------------
 
     public boolean sendHtmlEmail(String toEmail, String subject, String htmlBody) {
-        // 1. Try Resend API if key is present
-        if (resendApiKey != null && !resendApiKey.isBlank()) {
-            if (sendViaResend(toEmail, subject, htmlBody)) {
-                return true;
-            }
-            log.warn("Resend API attempt failed, attempting SMTP fallback for recipient: {}", maskEmail(toEmail));
-        }
-
-        // 2. Try JavaMailSender (SMTP)
-        if (smtpUsername != null && !smtpUsername.isBlank()) {
-            if (sendViaSmtp(toEmail, subject, htmlBody)) {
-                return true;
-            }
-        }
-
-        log.error("Email dispatch failed or unconfigured for recipient: {}. Please ensure RESEND_API_KEY or MAIL_USERNAME & MAIL_PASSWORD are valid.", maskEmail(toEmail));
-        return false;
-    }
-
-    private boolean sendViaResend(String toEmail, String subject, String htmlBody) {
-        java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
-        try {
-            String from;
-            if (fromAddress != null && !fromAddress.isBlank()) {
-                String trimmedFrom = fromAddress.trim();
-                from = trimmedFrom.contains("<") ? trimmedFrom : (displayName + " <" + trimmedFrom + ">");
-            } else {
-                from = "FriendsHub <onboarding@resend.dev>";
-            }
-
-            com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            String jsonPayload = objectMapper.writeValueAsString(java.util.Map.of(
-                "from", from,
-                "to", java.util.List.of(toEmail.trim()),
-                "subject", subject,
-                "html", htmlBody
-            ));
-
-            java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
-                    .uri(java.net.URI.create("https://api.resend.com/emails"))
-                    .header("Authorization", "Bearer " + resendApiKey.trim())
-                    .header("Content-Type", "application/json")
-                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(jsonPayload, java.nio.charset.StandardCharsets.UTF_8))
-                    .build();
-
-            java.net.http.HttpResponse<String> resp = client.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
-            if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
-                log.info("Email sent via Resend API to {}", maskEmail(toEmail));
-                return true;
-            } else {
-                log.warn("Resend API returned status {} for {}: {}", resp.statusCode(), maskEmail(toEmail), resp.body());
-                return false;
-            }
-        } catch (Exception e) {
-            log.warn("Failed to send email via Resend API to {}: {}", maskEmail(toEmail), e.getMessage());
-            return false;
-        }
-    }
-
-    private boolean sendViaSmtp(String toEmail, String subject, String htmlBody) {
         try {
             MimeMessage message = javaMailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
-            // Gmail SMTP requires From address to match authenticated username (smtpUsername)
+            // In Gmail SMTP, the From address should match the authenticated Gmail account
             String effectiveFrom = (smtpUsername != null && !smtpUsername.isBlank() && smtpUsername.contains("@"))
                     ? smtpUsername.trim()
                     : fromAddress.trim();
@@ -201,23 +137,12 @@ public class EmailService {
             helper.setText(htmlBody, true);
 
             javaMailSender.send(message);
-            log.info("Email sent via SMTP to {}", maskEmail(toEmail));
+            log.info("Email sent successfully via Gmail SMTP to {}", maskEmail(toEmail));
             return true;
         } catch (Exception e) {
-            log.error("Failed to send email via SMTP to {}: {}", maskEmail(toEmail), e.getMessage(), e);
+            log.error("Gmail SMTP dispatch failed for {}: {}", maskEmail(toEmail), e.getMessage(), e);
             return false;
         }
-    }
-
-    private String escapeJson(String text) {
-        if (text == null) return "";
-        return text.replace("\\", "\\\\")
-                   .replace("\"", "\\\"")
-                   .replace("\b", "\\b")
-                   .replace("\f", "\\f")
-                   .replace("\n", "\\n")
-                   .replace("\r", "\\r")
-                   .replace("\t", "\\t");
     }
 
     // =========================================================================
