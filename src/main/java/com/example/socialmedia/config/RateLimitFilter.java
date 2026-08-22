@@ -18,12 +18,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Rate Limiting Filter using a sliding-window counter (no external libraries).
+ * Rate Limiting Filter using a sliding-window counter.
  *
- * - Per-IP rate limiting to prevent DDoS / brute force
+ * - Dedicated per-IP rate limiting for auth endpoints vs general traffic
+ * - Bypasses CORS preflight OPTIONS requests
  * - Configurable via application.properties
  * - Returns proper 429 JSON response with Retry-After header
- * - Adds X-RateLimit-Remaining header for API visibility
  * - Skips actuator & health-check endpoints
  */
 @Component
@@ -31,14 +31,20 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(RateLimitFilter.class);
 
-    /** Stores request count + window start per IP */
+    /** Stores general request count + window start per IP */
     private final Map<String, RateLimitEntry> ipCounters = new ConcurrentHashMap<>();
+
+    /** Stores auth-specific request count + window start per IP */
+    private final Map<String, RateLimitEntry> authCounters = new ConcurrentHashMap<>();
 
     @Value("${app.ratelimit.enabled:true}")
     private boolean enabled;
 
-    @Value("${app.ratelimit.requests-per-minute:60}")
+    @Value("${app.ratelimit.requests-per-minute:120}")
     private int requestsPerMinute;
+
+    @Value("${app.ratelimit.auth.requests-per-minute:25}")
+    private int authRequestsPerMinute;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -46,66 +52,96 @@ public class RateLimitFilter extends OncePerRequestFilter {
             FilterChain filterChain)
             throws ServletException, IOException {
 
-        if (!enabled) {
+        if (!enabled || "OPTIONS".equalsIgnoreCase(request.getMethod())) {
             filterChain.doFilter(request, response);
             return;
         }
 
         String clientIp = getClientIp(request);
-        RateLimitEntry entry = ipCounters.computeIfAbsent(clientIp, k -> new RateLimitEntry());
-
-        // Reset counter or clean up stale entries if 1-minute window has elapsed
-        long now = System.currentTimeMillis();
-
-        // Reset window and increment count atomically to prevent race conditions
-        int currentCount;
-        synchronized (entry) {
-            if (now - entry.windowStart.get() > 60_000L) {
-                entry.count.set(0);
-                entry.windowStart.set(now);
-            }
-            currentCount = entry.count.incrementAndGet();
-        }
-
-        // Bounded map maintenance: purge stale entries if map size exceeds threshold
-        if (ipCounters.size() > 1000) {
-            ipCounters.entrySet().removeIf(e -> (now - e.getValue().windowStart.get()) > 60_000L);
-        }
-
-        // Stricter rate limit for authentication endpoints to prevent brute force
         String requestPath = request.getRequestURI();
         boolean isAuthEndpoint = requestPath.startsWith("/api/auth/login")
             || requestPath.startsWith("/api/auth/register")
             || requestPath.startsWith("/api/auth/forgot-password")
-            || requestPath.startsWith("/api/auth/reset-password");
-        int effectiveLimit = isAuthEndpoint ? Math.min(requestsPerMinute, 10) : requestsPerMinute;
+            || requestPath.startsWith("/api/auth/reset-password")
+            || requestPath.startsWith("/api/auth/resend-verification");
 
-        if (currentCount > effectiveLimit) {
-            log.warn("Rate limit exceeded for IP: {} on endpoint: {} {}",
-                    clientIp, request.getMethod(), request.getRequestURI());
-            response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
-            response.setContentType("application/json");
-            response.addHeader("Retry-After", "60");
-            response.getWriter().write("""
-                    {
-                      "status": 429,
-                      "error": "Too Many Requests",
-                      "message": "Rate limit exceeded. Please try again later."
-                    }
-                    """);
-            return;
+        long now = System.currentTimeMillis();
+
+        if (isAuthEndpoint) {
+            RateLimitEntry authEntry = authCounters.computeIfAbsent(clientIp, k -> new RateLimitEntry());
+            int currentAuthCount;
+            synchronized (authEntry) {
+                if (now - authEntry.windowStart.get() > 60_000L) {
+                    authEntry.count.set(0);
+                    authEntry.windowStart.set(now);
+                }
+                currentAuthCount = authEntry.count.incrementAndGet();
+            }
+
+            if (authCounters.size() > 1000) {
+                authCounters.entrySet().removeIf(e -> (now - e.getValue().windowStart.get()) > 60_000L);
+            }
+
+            if (currentAuthCount > authRequestsPerMinute) {
+                log.warn("Auth rate limit exceeded for IP: {} on endpoint: {} {}",
+                        clientIp, request.getMethod(), request.getRequestURI());
+                response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+                response.setContentType("application/json");
+                response.addHeader("Retry-After", "60");
+                response.getWriter().write("""
+                        {
+                          "status": 429,
+                          "error": "Too Many Requests",
+                          "message": "Too many authentication attempts. Please try again in 1 minute."
+                        }
+                        """);
+                return;
+            }
+
+            response.addHeader("X-RateLimit-Remaining",
+                    String.valueOf(Math.max(0, authRequestsPerMinute - currentAuthCount)));
+        } else {
+            RateLimitEntry entry = ipCounters.computeIfAbsent(clientIp, k -> new RateLimitEntry());
+            int currentCount;
+            synchronized (entry) {
+                if (now - entry.windowStart.get() > 60_000L) {
+                    entry.count.set(0);
+                    entry.windowStart.set(now);
+                }
+                currentCount = entry.count.incrementAndGet();
+            }
+
+            if (ipCounters.size() > 1000) {
+                ipCounters.entrySet().removeIf(e -> (now - e.getValue().windowStart.get()) > 60_000L);
+            }
+
+            if (currentCount > requestsPerMinute) {
+                log.warn("General rate limit exceeded for IP: {} on endpoint: {} {}",
+                        clientIp, request.getMethod(), request.getRequestURI());
+                response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+                response.setContentType("application/json");
+                response.addHeader("Retry-After", "60");
+                response.getWriter().write("""
+                        {
+                          "status": 429,
+                          "error": "Too Many Requests",
+                          "message": "Rate limit exceeded. Please try again later."
+                        }
+                        """);
+                return;
+            }
+
+            response.addHeader("X-RateLimit-Remaining",
+                    String.valueOf(Math.max(0, requestsPerMinute - currentCount)));
         }
 
-        // Add rate-limit headers for API visibility
-        response.addHeader("X-RateLimit-Remaining",
-                String.valueOf(Math.max(0, requestsPerMinute - currentCount)));
         filterChain.doFilter(request, response);
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.startsWith("/actuator");
+        return path.startsWith("/actuator") || "OPTIONS".equalsIgnoreCase(request.getMethod());
     }
 
     // Trusted internal proxy CIDR prefixes — only trust X-Forwarded-For from these

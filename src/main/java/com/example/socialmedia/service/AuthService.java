@@ -180,7 +180,7 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
         }
 
-        var user = userRepository.findByEmail(email)
+        var user = userRepository.findByEmailIgnoreCase(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
         if (user.getVerificationStatus() != VerificationStatus.VERIFIED) {
@@ -235,9 +235,47 @@ public class AuthService {
     }
 
     @Transactional
+    public String resendVerification(String email) {
+        String normalizedEmail = email != null ? email.trim().toLowerCase() : "";
+        if (normalizedEmail.isBlank()) {
+            throw new RuntimeException("Email is required");
+        }
+
+        Optional<User> userOpt = userRepository.findByEmailIgnoreCase(normalizedEmail);
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            if (user.getVerificationStatus() == VerificationStatus.VERIFIED) {
+                return "Account is already verified. You can log in.";
+            }
+
+            String rawToken = UUID.randomUUID().toString();
+            String hashedToken = hashToken(rawToken);
+
+            user.setVerificationToken(hashedToken);
+            user.setTokenExpiry(LocalDateTime.now().plusHours(24));
+            userRepository.save(user);
+
+            String firstName = "there";
+            Optional<UserInfo> infoOpt = userInfoRepository.findByUser(user);
+            if (infoOpt.isPresent() && infoOpt.get().getFirstName() != null && !infoOpt.get().getFirstName().isBlank()) {
+                firstName = infoOpt.get().getFirstName();
+            }
+
+            try {
+                emailService.sendVerificationEmail(user.getEmail(), rawToken, firstName);
+                log.info("Dispatched new verification email to {}", maskEmail(user.getEmail()));
+            } catch (Exception e) {
+                log.warn("Resend verification email dispatch error: {}", e.getMessage());
+            }
+        }
+
+        return "If that email exists and is unverified, a new verification link has been sent.";
+    }
+
+    @Transactional
     public String forgotPassword(String email) {
         String normalizedEmail = email != null ? email.trim().toLowerCase() : "";
-        Optional<User> userOpt = userRepository.findByEmail(normalizedEmail);
+        Optional<User> userOpt = userRepository.findByEmailIgnoreCase(normalizedEmail);
         if (userOpt.isPresent()) {
             String otp = String.format("%06d", SECURE_RANDOM.nextInt(1000000));
             User user = userOpt.get();
@@ -248,14 +286,17 @@ public class AuthService {
             try {
                 redisTemplate.opsForValue().set("otp:" + normalizedEmail, otp, Duration.ofMinutes(10));
             } catch (Exception e) {
-                org.slf4j.LoggerFactory.getLogger(AuthService.class).warn("Redis OTP save bypass: {}", e.getMessage());
+                log.warn("Redis OTP save bypass: {}", e.getMessage());
             }
 
+            log.info("Generated password reset OTP for user {}", maskEmail(normalizedEmail));
             try {
                 emailService.sendOtpEmail(normalizedEmail, otp);
             } catch (Exception e) {
-                org.slf4j.LoggerFactory.getLogger(AuthService.class).warn("OTP email dispatch error: {}", e.getMessage());
+                log.warn("OTP email dispatch error: {}", e.getMessage());
             }
+        } else {
+            log.info("Forgot password requested for non-existent email {}", maskEmail(normalizedEmail));
         }
         return "If that email exists, an OTP has been sent.";
     }
@@ -267,10 +308,11 @@ public class AuthService {
         try {
             storedOtp = (String) redisTemplate.opsForValue().get("otp:" + normalizedEmail);
         } catch (Exception e) {
-            org.slf4j.LoggerFactory.getLogger(AuthService.class).warn("Redis OTP fetch bypass: {}", e.getMessage());
+            log.warn("Redis OTP fetch bypass: {}", e.getMessage());
         }
 
-        User user = userRepository.findByEmail(normalizedEmail).orElseThrow(() -> new RuntimeException("User not found"));
+        User user = userRepository.findByEmailIgnoreCase(normalizedEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
         boolean validOtp = (storedOtp != null && storedOtp.equals(otp));
         if (!validOtp) {

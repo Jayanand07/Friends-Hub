@@ -128,6 +128,7 @@ public class EmailService {
             if (sendViaResend(toEmail, subject, htmlBody)) {
                 return true;
             }
+            log.warn("Resend API attempt failed, attempting SMTP fallback for recipient: {}", maskEmail(toEmail));
         }
 
         // 2. Try JavaMailSender (SMTP)
@@ -137,21 +138,25 @@ public class EmailService {
             }
         }
 
-        log.warn("Email service is unconfigured or failed for recipient: {}", maskEmail(toEmail));
+        log.error("Email dispatch failed or unconfigured for recipient: {}. Please ensure RESEND_API_KEY or MAIL_USERNAME & MAIL_PASSWORD are valid.", maskEmail(toEmail));
         return false;
     }
 
     private boolean sendViaResend(String toEmail, String subject, String htmlBody) {
         java.net.http.HttpClient client = java.net.http.HttpClient.newHttpClient();
         try {
-            String from = (fromAddress != null && !fromAddress.isBlank() && !"noreply@friendshub.me".equals(fromAddress))
-                    ? fromAddress
-                    : "FriendsHub <onboarding@resend.dev>";
+            String from;
+            if (fromAddress != null && !fromAddress.isBlank()) {
+                String trimmedFrom = fromAddress.trim();
+                from = trimmedFrom.contains("<") ? trimmedFrom : (displayName + " <" + trimmedFrom + ">");
+            } else {
+                from = "FriendsHub <onboarding@resend.dev>";
+            }
 
             com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
             String jsonPayload = objectMapper.writeValueAsString(java.util.Map.of(
                 "from", from,
-                "to", java.util.List.of(toEmail),
+                "to", java.util.List.of(toEmail.trim()),
                 "subject", subject,
                 "html", htmlBody
             ));
@@ -168,11 +173,11 @@ public class EmailService {
                 log.info("Email sent via Resend API to {}", maskEmail(toEmail));
                 return true;
             } else {
-                log.error("Resend API returned status {}: {}", resp.statusCode(), resp.body());
+                log.warn("Resend API returned status {} for {}: {}", resp.statusCode(), maskEmail(toEmail), resp.body());
                 return false;
             }
         } catch (Exception e) {
-            log.error("Failed to send email via Resend API: {}", e.getMessage(), e);
+            log.warn("Failed to send email via Resend API to {}: {}", maskEmail(toEmail), e.getMessage());
             return false;
         }
     }
@@ -184,14 +189,14 @@ public class EmailService {
 
             // Gmail SMTP requires From address to match authenticated username (smtpUsername)
             String effectiveFrom = (smtpUsername != null && !smtpUsername.isBlank() && smtpUsername.contains("@"))
-                    ? smtpUsername
-                    : fromAddress;
+                    ? smtpUsername.trim()
+                    : fromAddress.trim();
 
             helper.setFrom(new InternetAddress(effectiveFrom, displayName));
             if (replyTo != null && !replyTo.isBlank()) {
-                helper.setReplyTo(new InternetAddress(replyTo, displayName));
+                helper.setReplyTo(new InternetAddress(replyTo.trim(), displayName));
             }
-            helper.setTo(toEmail);
+            helper.setTo(toEmail.trim());
             helper.setSubject(subject);
             helper.setText(htmlBody, true);
 

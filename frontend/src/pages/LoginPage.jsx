@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion as Motion } from 'framer-motion';
-import { Mail, Lock, Sparkles, ArrowRight, Loader, Eye, EyeOff } from 'lucide-react';
-import { login } from '../api/auth';
+import { Mail, Lock, Sparkles, ArrowRight, Loader, Eye, EyeOff, Send } from 'lucide-react';
+import { login, forgotPassword, resendVerification } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { GoogleLoginButton } from '../components/GoogleLoginButton';
@@ -17,6 +17,7 @@ export default function LoginPage() {
     const [form, setForm] = useState({ email: '', password: '' });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [resendingVerification, setResendingVerification] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
     const handleSubmit = async (e) => {
@@ -24,7 +25,7 @@ export default function LoginPage() {
         setError('');
         setLoading(true);
         try {
-            const res = await login(form);
+            const res = await login({ email: form.email.trim(), password: form.password });
             loginUser(res.data.token, res.data.refreshToken);
             toast.success('Welcome back! 🎉');
             navigate('/');
@@ -37,16 +38,33 @@ export default function LoginPage() {
         }
     };
 
+    const handleResendVerification = async () => {
+        const targetEmail = form.email.trim() || resetEmail.trim();
+        if (!targetEmail) {
+            toast.error('Please enter your email address first.');
+            return;
+        }
+        setResendingVerification(true);
+        try {
+            await resendVerification(targetEmail);
+            toast.success('Verification email sent! Please check your inbox.');
+        } catch (err) {
+            const msg = err.response?.data?.message || 'Failed to send verification email.';
+            toast.error(msg);
+        } finally {
+            setResendingVerification(false);
+        }
+    };
+
     const handleForgotPassword = async (e) => {
         e.preventDefault();
         setError('');
         setLoading(true);
+        const targetEmail = resetEmail.trim();
         try {
-            const { forgotPassword } = await import('../api/auth');
-            await forgotPassword(resetEmail);
+            await forgotPassword(targetEmail);
             toast.success('Reset link & OTP sent to your email! 📧');
             setIsForgotPassword(false);
-            const targetEmail = resetEmail;
             setResetEmail('');
             sessionStorage.setItem('resetPasswordEmail', targetEmail);
             navigate('/reset-password');
@@ -88,7 +106,21 @@ export default function LoginPage() {
                         animate={{ opacity: 1, y: 0 }}
                         className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-[12px]"
                     >
-                        {error}
+                        <div>{error}</div>
+                        {error.toLowerCase().includes('verify') && (
+                            <button
+                                type="button"
+                                onClick={handleResendVerification}
+                                disabled={resendingVerification}
+                                className="mt-2 text-[11px] text-[var(--accent)] hover:underline font-semibold flex items-center gap-1"
+                            >
+                                {resendingVerification ? (
+                                    <><Loader size={10} className="animate-spin" /> Resending...</>
+                                ) : (
+                                    <><Send size={10} /> Resend verification email</>
+                                )}
+                            </button>
+                        )}
                     </Motion.div>
                 )}
 

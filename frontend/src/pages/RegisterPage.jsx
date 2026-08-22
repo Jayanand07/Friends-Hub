@@ -118,7 +118,7 @@ export default function RegisterPage() {
                                 type={showPassword ? 'text' : 'password'}
                                 autoComplete="new-password"
                                 className={`input-field pl-9 pr-9 text-[13px] ${passwordError ? 'border-red-500/50' : ''}`}
-                                placeholder="Min. 8 chars, 1 uppercase, 1 number"
+                                placeholder="Min. 12 chars, 1 uppercase, 1 special"
                                 value={form.password}
                                 onChange={(e) => {
                                     setForm({ ...form, password: e.target.value });
