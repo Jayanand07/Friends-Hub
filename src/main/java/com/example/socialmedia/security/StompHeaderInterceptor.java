@@ -25,6 +25,30 @@ public class StompHeaderInterceptor implements ChannelInterceptor {
         this.userDetailsService = userDetailsService;
     }
 
+    private final java.util.Map<String, WsRateLimitEntry> wsRateLimits = new java.util.concurrent.ConcurrentHashMap<>();
+
+    private static class WsRateLimitEntry {
+        final java.util.concurrent.atomic.AtomicInteger count = new java.util.concurrent.atomic.AtomicInteger(0);
+        final java.util.concurrent.atomic.AtomicLong windowStart = new java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis());
+    }
+
+    private boolean isWsRateLimited(String sessionId) {
+        if (sessionId == null) return false;
+        long now = System.currentTimeMillis();
+        WsRateLimitEntry entry = wsRateLimits.computeIfAbsent(sessionId, k -> new WsRateLimitEntry());
+        synchronized (entry) {
+            if (now - entry.windowStart.get() > 60_000L) {
+                entry.count.set(0);
+                entry.windowStart.set(now);
+            }
+            int current = entry.count.incrementAndGet();
+            if (wsRateLimits.size() > 5000) {
+                wsRateLimits.entrySet().removeIf(e -> (now - e.getValue().windowStart.get()) > 60_000L);
+            }
+            return current > 60; // Max 60 STOMP messages per minute per session
+        }
+    }
+
     @Override
     public Message<?> preSend(@org.springframework.lang.NonNull Message<?> message,
             @org.springframework.lang.NonNull MessageChannel channel) {
@@ -46,8 +70,12 @@ public class StompHeaderInterceptor implements ChannelInterceptor {
                 validateAndSetAuthentication(accessor);
             }
         }
-        // Validate token on SEND frame
+        // Validate token and rate-limit on SEND frame
         else if (StompCommand.SEND.equals(accessor.getCommand())) {
+            if (isWsRateLimited(accessor.getSessionId())) {
+                log.warn("WebSocket message rate limit exceeded for session: {}", accessor.getSessionId());
+                throw new org.springframework.messaging.MessageDeliveryException("Rate limit exceeded: maximum 60 messages per minute");
+            }
             if (accessor.getUser() != null) {
                 SecurityContextHolder.getContext().setAuthentication((org.springframework.security.core.Authentication) accessor.getUser());
             } else {

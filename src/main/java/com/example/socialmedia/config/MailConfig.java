@@ -39,12 +39,12 @@ public class MailConfig {
     @Primary
     public JavaMailSender javaMailSender() {
         JavaMailSenderImpl mailSender = new JavaMailSenderImpl();
-        mailSender.setHost(host);
-        mailSender.setPort(port);
+        mailSender.setHost(host != null && !host.isBlank() ? host.trim() : "smtp.gmail.com");
+        mailSender.setPort(port > 0 ? port : 587);
         mailSender.setDefaultEncoding("UTF-8");
 
         String cleanUsername = username != null ? username.trim() : "";
-        String cleanPassword = password != null ? password.replaceAll("\\s+", "") : "";
+        String cleanPassword = password != null ? password.replaceAll("\\s+", "").trim() : "";
 
         if (!cleanUsername.isBlank()) {
             mailSender.setUsername(cleanUsername);
@@ -61,11 +61,11 @@ public class MailConfig {
         Properties props = mailSender.getJavaMailProperties();
         props.put("mail.transport.protocol", "smtp");
         props.put("mail.smtp.auth", "true");
-        props.put("mail.smtp.ssl.trust", "smtp.gmail.com");
+        props.put("mail.smtp.ssl.trust", "*");
         props.put("mail.smtp.ssl.protocols", "TLSv1.2 TLSv1.3");
-        props.put("mail.smtp.connectiontimeout", "15000");
-        props.put("mail.smtp.timeout", "15000");
-        props.put("mail.smtp.writetimeout", "15000");
+        props.put("mail.smtp.connectiontimeout", "10000");
+        props.put("mail.smtp.timeout", "10000");
+        props.put("mail.smtp.writetimeout", "10000");
 
         if (port == 465) {
             props.put("mail.smtp.ssl.enable", "true");
@@ -78,7 +78,7 @@ public class MailConfig {
         }
 
         log.info("Initialized JavaMailSender for Gmail SMTP (host: {}, port: {}, user: {})",
-                host, port, cleanUsername.isEmpty() ? "UNCONFIGURED" : cleanUsername);
+                mailSender.getHost(), mailSender.getPort(), cleanUsername.isEmpty() ? "UNCONFIGURED" : cleanUsername);
 
         return mailSender;
     }

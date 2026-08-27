@@ -128,10 +128,20 @@ public class EmailService {
                     ? smtpUsername.trim()
                     : fromAddress.trim();
 
-            helper.setFrom(new InternetAddress(effectiveFrom, displayName));
-            if (replyTo != null && !replyTo.isBlank()) {
-                helper.setReplyTo(new InternetAddress(replyTo.trim(), displayName));
+            try {
+                helper.setFrom(effectiveFrom, displayName != null && !displayName.isBlank() ? displayName.trim() : "FriendsHub");
+            } catch (Exception e) {
+                helper.setFrom(effectiveFrom);
             }
+
+            if (replyTo != null && !replyTo.isBlank()) {
+                try {
+                    helper.setReplyTo(replyTo.trim(), displayName != null && !displayName.isBlank() ? displayName.trim() : "FriendsHub");
+                } catch (Exception e) {
+                    helper.setReplyTo(replyTo.trim());
+                }
+            }
+
             helper.setTo(toEmail.trim());
             helper.setSubject(subject);
             helper.setText(htmlBody, true);
@@ -140,7 +150,7 @@ public class EmailService {
             log.info("Email sent successfully via Gmail SMTP to {}", maskEmail(toEmail));
             return true;
         } catch (Exception e) {
-            log.error("Gmail SMTP dispatch failed for {}: {}", maskEmail(toEmail), e.getMessage(), e);
+            log.error("Gmail SMTP dispatch failed for {}. Reason: {}", maskEmail(toEmail), e.getMessage(), e);
             return false;
         }
     }
