@@ -2,17 +2,15 @@
 
 ## ↪️ Our Pledge
 
-
-We as members, contributors, and maintainers of Friends-Hub pledge to make participation in our community a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, religion, or sexual identity and orientation.
+We as members, contributors, and maintainers of FriendsHub pledge to make participation in our community a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, religion, or sexual identity and orientation.
 
 We pledge to act and interact in ways that contribute to an open, welcoming, diverse, inclusive, and healthy community.
 
 ---
 
-## ↪️ Community Standardss
+## ↪️ Community Standards
 
-
-### 1.Positive Behaviour
+### 1. Positive Behaviour
 
 Examples of behavior that contributes to a positive environment for our community include:
 
@@ -22,7 +20,7 @@ Examples of behavior that contributes to a positive environment for our communit
 - Accepting responsibility and apologizing to those affected by our mistakes, and learning from the experience.
 - Focusing on what is best not just for us as individuals, but for the overall community.
 
-### 2.Unacceptable Behaviour
+### 2. Unacceptable Behaviour
 
 Examples of unacceptable behavior include:
 
@@ -44,13 +42,15 @@ Maintainers have the right and responsibility to remove, edit, or reject comment
 
 ## Scope
 
-This Code of Conduct applies within all project spaces, including the repository, issues, pull requests, discussions, and any other public or private communication channel related to Friends-Hub.
+This Code of Conduct applies within all project spaces, including the repository, issues, pull requests, discussions, and any other public or private communication channel related to FriendsHub.
 
 It also applies when an individual is representing the project or its community in public spaces.
 
+---
+
 ## Reporting
 
-If you experience or witness unacceptable behavior, you can report it by contacting the project maintainers through GitHub issues or the project’s official contact method, if provided.
+If you experience or witness unacceptable behavior, you can report it by contacting the project maintainers through GitHub issues or via email at `support@friendshub.me`.
 
 All complaints will be reviewed and investigated promptly and fairly.
 
@@ -59,15 +59,12 @@ All complaints will be reviewed and investigated promptly and fairly.
 ## ↪️ Enforcement Consequences
 
 ### 1. Warning
-
 A private warning explaining the violation and guidance for future behaviour.
 
 ### 2. Temporary Restriction
-
 Temporary suspension from project discussions or contributions for repeated violations.
 
 ### 3. Permanent Ban
-
 Permanent removal from the project community for severe or repeated misconduct.
 
 ---

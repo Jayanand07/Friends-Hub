@@ -1,4 +1,4 @@
-package com.example.socialmedia.scheduled;
+package com.example.socialmedia.scheduler;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
