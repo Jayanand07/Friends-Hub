@@ -139,12 +139,17 @@ public class UserService {
         long followerCount = followRepository.countByFollowingId(user.getId());
         long followingCount = followRepository.countByFollowerId(user.getId());
 
+        // SECURITY (M-2): For private accounts, hide profile details (bio/location)
+        // from non-followers at the SERVER side — the old response relied on the
+        // frontend honoring canViewPosts, so the data leaked to any API caller.
+        boolean canViewDetails = canViewPosts;
+
         return UserProfileResponse.builder()
                 .userId(user.getId())
                 .email(isMe ? user.getEmail() : null)
                 .firstName(info != null ? info.getFirstName() : null)
                 .lastName(info != null ? info.getLastName() : null)
-                .bio(info != null ? info.getBio() : null)
+                .bio(canViewDetails && info != null ? info.getBio() : null)
                 .profilePicUrl(info != null ? info.getProfilePicUrl() : null)
                 .followerCount(followerCount)
                 .followingCount(followingCount)
@@ -154,7 +159,7 @@ public class UserService {
                 .canViewPosts(canViewPosts)
                 .mutualFriendCount(mutualFriendCount)
                 .role(user.getRole())
-                .city(info != null ? info.getLocation() : null)
+                .city(canViewDetails && info != null ? info.getLocation() : null)
                 .build();
     }
 
@@ -388,6 +393,13 @@ public class UserService {
             throw new RuntimeException("Action not allowed");
         }
 
+        // SECURITY (M-2): a private account's social graph is only visible to
+        // the account itself and its followers.
+        if (!target.getId().equals(requester.getId()) && target.isPrivateAccount()
+                && !followRepository.existsByFollowerAndFollowing(requester, target)) {
+            throw new RuntimeException("This account is private");
+        }
+
         return followRepository.findFollowersWithUserInfoByFollowingId(userId).stream()
                 .map(this::mapToFollowUserResponse)
                 .collect(Collectors.toList());
@@ -404,6 +416,13 @@ public class UserService {
         if (blockRepository.existsByBlockerAndBlocked(target, requester) ||
                 blockRepository.existsByBlockerAndBlocked(requester, target)) {
             throw new RuntimeException("Action not allowed");
+        }
+
+        // SECURITY (M-2): a private account's social graph is only visible to
+        // the account itself and its followers.
+        if (!target.getId().equals(requester.getId()) && target.isPrivateAccount()
+                && !followRepository.existsByFollowerAndFollowing(requester, target)) {
+            throw new RuntimeException("This account is private");
         }
 
         return followRepository.findByFollowerId(userId).stream()

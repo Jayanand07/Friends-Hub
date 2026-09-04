@@ -80,6 +80,17 @@ public class ChatService {
         return toDTO(saved);
     }
 
+    /** Returns true if neither user has blocked the other (used for typing pings etc.). */
+    @Transactional(readOnly = true)
+    public boolean canInteract(String senderEmail, Long otherUserId) {
+        User sender = userRepo.findByEmail(senderEmail)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        User other = userRepo.findById(otherUserId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return !blockRepo.existsByBlockerAndBlocked(other, sender)
+                && !blockRepo.existsByBlockerAndBlocked(sender, other);
+    }
+
     @Transactional(readOnly = true)
     public List<ChatMessageDTO> getConversation(String currentEmail, Long otherUserId) {
         User currentUser = userRepo.findByEmail(currentEmail)

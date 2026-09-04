@@ -1,13 +1,9 @@
 package com.example.socialmedia.config;
 
-import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
-import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
-
-import java.util.List;
 
 @Component
 public class WebMvcConfig implements WebMvcConfigurer {
@@ -25,10 +21,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns("/actuator/**");
     }
 
-    @Override
-    public void addArgumentResolvers(@NonNull List<HandlerMethodArgumentResolver> resolvers) {
-        PageableHandlerMethodArgumentResolver resolver = new PageableHandlerMethodArgumentResolver();
-        resolver.setMaxPageSize(100);
-        resolvers.add(resolver);
-    }
+    // NOTE: the custom PageableHandlerMethodArgumentResolver that was registered
+    // here could be shadowed by Spring Boot's auto-registered one (resolver order
+    // is not guaranteed), so the intended max-page-size=100 cap was not reliably
+    // applied. The cap is now set declaratively via
+    // spring.data.web.pageable.max-page-size=100 in application.properties,
+    // which configures Spring Boot's own resolver.
 }

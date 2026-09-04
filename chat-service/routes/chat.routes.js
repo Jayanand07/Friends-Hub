@@ -3,11 +3,11 @@ const router = express.Router();
 const ChatMessage = require('../models/ChatMessage');
 const ActivityLog = require('../models/ActivityLog');
 
-// In-memory fallback array if MongoDB connection is pending
-let memoryChats = [
-    { _id: '1', senderId: 'user1', senderName: 'Alex', receiverId: 'user2', message: 'Hey! Welcome to FriendsHub MongoDB Chat Service!', createdAt: new Date() },
-    { _id: '2', senderId: 'user2', senderName: 'Jordan', receiverId: 'user1', message: 'Awesome! High concurrency Express + MongoDB running perfectly!', createdAt: new Date() }
-];
+// In-memory fallback store when MongoDB is unavailable.
+// FIX: this used to be pre-seeded with fake demo conversations ("Alex"/"Jordan"),
+// which were returned to real users as if they were their chat history.
+// It is now empty — real data only.
+let memoryChats = [];
 
 // GET /api/chat/messages/:user1/:user2 - Fetch low-latency chat history
 router.get('/messages/:user1/:user2', async (req, res) => {
@@ -30,9 +30,9 @@ router.get('/messages/:user1/:user2', async (req, res) => {
         if (messages.length > 0) {
             return res.json({ success: true, count: messages.length, source: 'MongoDB', data: messages });
         }
-        return res.json({ success: true, count: memoryChats.length, source: 'DemoMemory', data: memoryChats });
+        return res.json({ success: true, count: memoryChats.length, source: 'MemoryFallback', data: memoryChats });
     } catch (err) {
-        res.json({ success: true, count: memoryChats.length, source: 'DemoMemory', data: memoryChats });
+        res.json({ success: true, count: memoryChats.length, source: 'MemoryFallback', data: memoryChats });
     }
 });
 
@@ -45,6 +45,10 @@ router.post('/messages', async (req, res) => {
         const { receiverId, message } = req.body;
         if (!senderId || !receiverId || !message) {
             return res.status(400).json({ success: false, error: 'Missing required fields' });
+        }
+        // Validate message shape/size before persisting (16KB JSON cap is set in server.js)
+        if (typeof message !== 'string' || message.trim().length === 0 || message.length > 5000) {
+            return res.status(400).json({ success: false, error: 'Message must be 1-5000 characters' });
         }
 
         const newMsg = new ChatMessage({ senderId, senderName, receiverId, message });

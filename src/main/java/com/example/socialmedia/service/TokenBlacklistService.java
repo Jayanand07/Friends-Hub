@@ -25,15 +25,33 @@ public class TokenBlacklistService {
     public void blacklistToken(String token, Date expiry) {
         long ttlMillis = expiry.getTime() - System.currentTimeMillis();
         if (ttlMillis > 0) {
-            redisTemplate.opsForValue()
-                    .set(getBlacklistKey(token), "1", Duration.ofMillis(ttlMillis));
-            log.debug("Token blacklisted with TTL: {}ms", ttlMillis);
+            try {
+                redisTemplate.opsForValue()
+                        .set(getBlacklistKey(token), "1", Duration.ofMillis(ttlMillis));
+                log.debug("Token blacklisted with TTL: {}ms", ttlMillis);
+            } catch (Exception e) {
+                // RESILIENCE: a Redis outage must not turn logout into a 500.
+                // The token still expires naturally (15 min) even if not blacklisted.
+                log.error("Failed to blacklist token on logout (Redis unavailable): {}", e.getMessage());
+            }
         }
     }
 
+    /**
+     * PERFORMANCE/RESILIENCE: this is called on EVERY authenticated request.
+     * If Redis is slow or down, failing hard would add seconds of latency to
+     * every request (or break auth entirely). Fail open instead — the worst
+     * case is that a logged-out token stays usable until its natural 15-minute
+     * expiry, which is an acceptable trade-off versus a dead/slow API.
+     */
     public boolean isBlacklisted(String token) {
-        Boolean hasKey = redisTemplate.hasKey(getBlacklistKey(token));
-        return Boolean.TRUE.equals(hasKey);
+        try {
+            Boolean hasKey = redisTemplate.hasKey(getBlacklistKey(token));
+            return Boolean.TRUE.equals(hasKey);
+        } catch (Exception e) {
+            log.warn("Blacklist check failed (Redis unavailable) — failing open: {}", e.getMessage());
+            return false;
+        }
     }
 
     public void removeTokenFromBlacklist(String token) {

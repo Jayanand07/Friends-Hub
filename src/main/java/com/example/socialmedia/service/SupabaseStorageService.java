@@ -107,7 +107,11 @@ public class SupabaseStorageService {
                 String.class);
 
         if (!response.getStatusCode().is2xxSuccessful()) {
-            throw new RuntimeException("Failed to upload image to Supabase: " + response.getBody());
+            // SECURITY: log the upstream body server-side but do NOT include it in
+            // the client-facing exception message (it was leaking Supabase details).
+            log.error("Supabase upload failed: status={}, body={}",
+                    response.getStatusCode(), response.getBody());
+            throw new RuntimeException("Failed to upload image to storage");
         }
 
         // Return public URL

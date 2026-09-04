@@ -58,6 +58,12 @@ public class ChatController {
         if (authentication == null) {
             throw new RuntimeException("Authentication required for typing indicator");
         }
+        // SECURITY: respect blocks — a blocked user must not be able to ping
+        // the victim's typing indicator either.
+        if (!chatService.canInteract(authentication.getName(), request.getReceiverId())) {
+            return;
+        }
+
         // M-2: Load user from DB to use their display name instead of leaking the email
         com.example.socialmedia.entity.User user = userRepo.findByEmail(authentication.getName())
                 .orElseThrow(() -> new RuntimeException("User not found"));

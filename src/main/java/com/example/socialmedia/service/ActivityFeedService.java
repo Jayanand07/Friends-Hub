@@ -6,7 +6,9 @@ import com.example.socialmedia.entity.Post;
 import com.example.socialmedia.entity.User;
 import com.example.socialmedia.entity.UserInfo;
 import com.example.socialmedia.repository.BlockRepository;
+import com.example.socialmedia.repository.CommentRepository;
 import com.example.socialmedia.repository.FollowRepository;
+import com.example.socialmedia.repository.LikeRepository;
 import com.example.socialmedia.repository.PostRepository;
 import com.example.socialmedia.repository.UserRepository;
 import org.springframework.data.domain.PageRequest;
@@ -31,15 +33,21 @@ public class ActivityFeedService {
     private final FollowRepository followRepository;
     private final PostRepository postRepository;
     private final BlockRepository blockRepository;
+    private final LikeRepository likeRepository;
+    private final CommentRepository commentRepository;
 
     public ActivityFeedService(UserRepository userRepository,
                                FollowRepository followRepository,
                                PostRepository postRepository,
-                               BlockRepository blockRepository) {
+                               BlockRepository blockRepository,
+                               LikeRepository likeRepository,
+                               CommentRepository commentRepository) {
         this.userRepository = userRepository;
         this.followRepository = followRepository;
         this.postRepository = postRepository;
         this.blockRepository = blockRepository;
+        this.likeRepository = likeRepository;
+        this.commentRepository = commentRepository;
     }
 
     @Transactional(readOnly = true)
@@ -62,6 +70,23 @@ public class ActivityFeedService {
 
         List<ActivityFeedItem> items = new ArrayList<>();
 
+        // PERF: p.getLikes().size() / p.getComments().size() triggered LAZY OneToMany
+        // loads — one extra query PER POST for likes and another for comments
+        // (up to 400 extra queries for a 200-post feed). Batch them into 2 queries.
+        List<Long> postIds = posts.stream().map(Post::getId).collect(Collectors.toList());
+        java.util.Map<Long, Long> likeCounts = postIds.isEmpty()
+                ? java.util.Map.of()
+                : likeRepository.countLikesByPostIdIn(postIds).stream()
+                        .collect(Collectors.toMap(
+                                arr -> ((Number) arr[0]).longValue(),
+                                arr -> ((Number) arr[1]).longValue()));
+        java.util.Map<Long, Long> commentCounts = postIds.isEmpty()
+                ? java.util.Map.of()
+                : commentRepository.countCommentsByPostIdIn(postIds).stream()
+                        .collect(Collectors.toMap(
+                                arr -> ((Number) arr[0]).longValue(),
+                                arr -> ((Number) arr[1]).longValue()));
+
         for (Post p : posts) {
             // Post author is already guaranteed to be someone the viewer follows
             // (queried via followingIds). The privateAccount check is intentionally
@@ -74,8 +99,8 @@ public class ActivityFeedService {
                     p.getId(),
                     p.getContent(),
                     p.getImageUrl(),
-                    p.getLikes() != null ? p.getLikes().size() : 0,
-                    p.getComments() != null ? p.getComments().size() : 0,
+                    likeCounts.getOrDefault(p.getId(), 0L).intValue(),
+                    commentCounts.getOrDefault(p.getId(), 0L).intValue(),
                     p.getCreatedAt() != null ? p.getCreatedAt().format(ISO) : null));
         }
 
@@ -85,10 +110,15 @@ public class ActivityFeedService {
                 .map(f -> f.getFollowing().getId())
                 .collect(Collectors.toList());
 
-        // H-8: Filter out blocked relationships before fetching
+        // H-8 + PERF: Filter out blocked relationships before fetching.
+        // The old per-friend existsBy... calls were an N+1 (2 queries per friend);
+        // these two batch queries cover every friend at once.
+        java.util.Set<Long> blockedByMe = new java.util.HashSet<>(
+                blockRepository.findBlockedIdsByBlockerId(me.getId()));
+        java.util.Set<Long> blockedMe = new java.util.HashSet<>(
+                blockRepository.findBlockerIdsByBlockedId(me.getId()));
         List<Long> allowedFriendIds = friendIds.stream()
-                .filter(fid -> !blockRepository.existsByBlockerIdAndBlockedId(me.getId(), fid)
-                        && !blockRepository.existsByBlockerIdAndBlockedId(fid, me.getId()))
+                .filter(fid -> !blockedByMe.contains(fid) && !blockedMe.contains(fid))
                 .collect(Collectors.toList());
 
         if (!allowedFriendIds.isEmpty()) {

@@ -95,7 +95,9 @@ public class PostService {
         }
 
         @Transactional(readOnly = true)
-        @Cacheable(value = "feed", key = "'user:' + #currentUserEmail + ':' + #pageable.pageNumber")
+        // PERF/M-7: page SIZE is part of the key — without it, requests using
+        // different page sizes collided on the same cache entry.
+        @Cacheable(value = "feed", key = "'user:' + #currentUserEmail + ':' + #pageable.pageNumber + ':' + #pageable.pageSize")
         public Page<PostResponse> getHomeFeed(String currentUserEmail, Pageable pageable) {
                 User user = userRepository.findByEmail(currentUserEmail)
                                 .orElseThrow(() -> new RuntimeException("User not found"));

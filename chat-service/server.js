@@ -57,7 +57,12 @@ if (!process.env.JWT_SECRET) {
     console.error('FATAL: JWT_SECRET environment variable is required');
     process.exit(1);
 }
-const JWT_SECRET = process.env.JWT_SECRET;
+// FIX (H-5): The Spring Boot backend signs HS256 tokens using the Base64-DECODED
+// bytes of JWT_SECRET (io.jsonwebtoken: Decoders.BASE64.decode + hmacShaKeyFor).
+// The previous code verified with the RAW string as key material — different
+// bytes, so every Java-issued token failed verification (all chat routes 401).
+// Decode the same way so the key material matches.
+const JWT_SECRET_KEY = Buffer.from(process.env.JWT_SECRET, 'base64');
 
 // SECURITY: Full cryptographic JWT signature verification middleware
 function authMiddleware(req, res, next) {
@@ -68,7 +73,7 @@ function authMiddleware(req, res, next) {
     try {
         const token = authHeader.substring(7);
         // Cryptographically verify signature and check expiry using JWT_SECRET
-        const decoded = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
+        const decoded = jwt.verify(token, JWT_SECRET_KEY, { algorithms: ['HS256'] });
 
         req.user = {
             email: decoded.sub,

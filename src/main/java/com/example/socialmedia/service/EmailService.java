@@ -25,7 +25,7 @@ public class EmailService {
         this.javaMailSender = javaMailSender;
     }
 
-    @Value("${spring.mail.username:}")
+    @Value("${spring.mail.username:${MAIL_USERNAME:}}")
     private String smtpUsername;
 
     // Display name shown to recipients — "FriendsHub"
@@ -61,8 +61,11 @@ public class EmailService {
 
         boolean sent = sendHtmlEmail(toEmail, subject, htmlBody);
         if (!sent) {
-            log.warn("Verification email FAILED to send to {}. Token was logged server-side for debugging only.", maskEmail(toEmail));
-            log.debug("Verification link (visible only at DEBUG level): {}", verifyLink);
+            // DIAGNOSIS: "verification email never arrives" is almost always a
+            // missing/incorrect MAIL_USERNAME or MAIL_PASSWORD (must be a Gmail
+            // App Password) — check the ERROR log line from sendHtmlEmail above.
+            log.error("Verification email FAILED to send to {} — check MAIL_USERNAME / MAIL_PASSWORD "
+                    + "env vars and the Gmail SMTP error logged above.", maskEmail(toEmail));
         } else {
             log.info("Verification email successfully sent to {}", maskEmail(toEmail));
         }
@@ -81,8 +84,9 @@ public class EmailService {
 
         boolean sent = sendHtmlEmail(toEmail, subject, htmlBody);
         if (!sent) {
-            log.warn("Password reset email FAILED to send to {}.", maskEmail(toEmail));
-            log.debug("Password reset link (DEBUG level only): {}", resetLink);
+            // SECURITY: never log the raw reset link — log the cause instead.
+            log.error("Password reset email FAILED to send to {} — check MAIL_USERNAME / MAIL_PASSWORD "
+                    + "env vars and the Gmail SMTP error logged above.", maskEmail(toEmail));
         } else {
             log.info("Password reset email successfully sent to {}", maskEmail(toEmail));
         }
@@ -105,7 +109,12 @@ public class EmailService {
 
             boolean sent = sendHtmlEmail(toEmail, subject, htmlBody);
             if (!sent) {
-                log.warn("OTP email could not be delivered to {}. OTP is saved in database.", maskEmail(toEmail));
+                // DIAGNOSIS: "OTP never arrives" is almost always a missing or
+                // incorrect MAIL_USERNAME / MAIL_PASSWORD (must be a Gmail App
+                // Password, NOT the account password). The underlying SMTP error
+                // is logged as ERROR by sendHtmlEmail.
+                log.error("OTP email FAILED to deliver to {} — check MAIL_USERNAME / MAIL_PASSWORD "
+                        + "env vars and the Gmail SMTP error logged above.", maskEmail(toEmail));
             } else {
                 log.info("OTP email successfully delivered via Gmail SMTP to {}", maskEmail(toEmail));
             }

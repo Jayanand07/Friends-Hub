@@ -12,24 +12,47 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 @Component
 public class StompHeaderInterceptor implements ChannelInterceptor {
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(StompHeaderInterceptor.class);
 
+    /**
+     * SECURITY (C-3): personal queue destinations look like /queue/messages-<userId>.
+     * The broker delivers to ANY subscriber of a literal destination, so without
+     * a check here any authenticated user could subscribe to another user's
+     * queues and eavesdrop on their messages, typing events and notifications.
+     */
+    private static final Pattern PERSONAL_QUEUE_PATTERN =
+            Pattern.compile("^/queue/([a-zA-Z]+)-(\\d+)$");
+    private static final Pattern GROUP_TOPIC_PATTERN =
+            Pattern.compile("^/topic/group-(\\d+)$");
+
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final com.example.socialmedia.repository.ChatGroupRepository chatGroupRepository;
 
-    public StompHeaderInterceptor(JwtService jwtService, UserDetailsService userDetailsService) {
+    /** sessionId -> authenticated userId, captured at CONNECT time. */
+    private final ConcurrentHashMap<String, Long> sessionUserIdMap = new ConcurrentHashMap<>();
+
+    public StompHeaderInterceptor(JwtService jwtService, UserDetailsService userDetailsService,
+            com.example.socialmedia.repository.ChatGroupRepository chatGroupRepository) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+        this.chatGroupRepository = chatGroupRepository;
     }
 
-    private final java.util.Map<String, WsRateLimitEntry> wsRateLimits = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Map<String, WsRateLimitEntry> wsRateLimits = new ConcurrentHashMap<>();
 
     private static class WsRateLimitEntry {
-        final java.util.concurrent.atomic.AtomicInteger count = new java.util.concurrent.atomic.AtomicInteger(0);
-        final java.util.concurrent.atomic.AtomicLong windowStart = new java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis());
+        final AtomicInteger count = new AtomicInteger(0);
+        final AtomicLong windowStart = new AtomicLong(System.currentTimeMillis());
     }
 
     private boolean isWsRateLimited(String sessionId) {
@@ -69,6 +92,8 @@ public class StompHeaderInterceptor implements ChannelInterceptor {
             } else {
                 validateAndSetAuthentication(accessor);
             }
+            // SECURITY (C-3): enforce destination-level authorization
+            authorizeSubscription(accessor);
         }
         // Validate token and rate-limit on SEND frame
         else if (StompCommand.SEND.equals(accessor.getCommand())) {
@@ -82,8 +107,68 @@ public class StompHeaderInterceptor implements ChannelInterceptor {
                 validateAndSetAuthentication(accessor);
             }
         }
+        // Clean up the session -> user mapping on disconnect
+        else if (StompCommand.DISCONNECT.equals(accessor.getCommand())) {
+            if (accessor.getSessionId() != null) {
+                sessionUserIdMap.remove(accessor.getSessionId());
+            }
+        }
 
         return message;
+    }
+
+    /**
+     * SECURITY (C-3): Any authenticated user could previously subscribe to
+     * /queue/messages-<otherUserId> (or any other user's personal queue, or a
+     * group topic they are not a member of) and receive that user's live
+     * messages, typing events, read receipts and notifications. This method
+     * ensures a client can only subscribe to its OWN personal queues and to
+     * topics for groups it actually belongs to.
+     */
+    private void authorizeSubscription(StompHeaderAccessor accessor) {
+        String destination = accessor.getDestination();
+        if (destination == null) {
+            return;
+        }
+
+        String sessionId = accessor.getSessionId();
+        Long userId = sessionId != null ? sessionUserIdMap.get(sessionId) : null;
+        if (userId == null) {
+            throw new org.springframework.messaging.MessageDeliveryException(
+                    "Unknown session — reconnect with a valid token");
+        }
+
+        // Personal queues (/queue/messages-123, /queue/typing-123, ...):
+        // only the owner may subscribe.
+        Matcher personal = PERSONAL_QUEUE_PATTERN.matcher(destination);
+        if (personal.matches()) {
+            Long destinationUserId = Long.parseLong(personal.group(2));
+            if (!destinationUserId.equals(userId)) {
+                log.warn("BLOCKED cross-user WebSocket subscription: session {} (user {}) attempted to subscribe to {}",
+                        sessionId, userId, destination);
+                throw new org.springframework.messaging.MessageDeliveryException(
+                        "Subscription not permitted: destination belongs to another user");
+            }
+            return;
+        }
+
+        // Group topics (/topic/group-42): requires actual membership.
+        Matcher group = GROUP_TOPIC_PATTERN.matcher(destination);
+        if (group.matches()) {
+            Long groupId = Long.parseLong(group.group(1));
+            boolean isMember = chatGroupRepository.findByIdAndMembers_Id(groupId, userId).isPresent();
+            if (!isMember) {
+                log.warn("BLOCKED non-member WebSocket subscription: session {} (user {}) attempted to subscribe to {}",
+                        sessionId, userId, destination);
+                throw new org.springframework.messaging.MessageDeliveryException(
+                        "Subscription not permitted: not a member of this group");
+            }
+            return;
+        }
+
+        // Everything else (e.g. /topic/online-users, /user/queue/**) is either
+        // a public broadcast or routed by the broker's per-user destination
+        // resolver (which only delivers to the authenticated user's sessions).
     }
 
     private void validateAndSetAuthentication(StompHeaderAccessor accessor) {
@@ -108,6 +193,13 @@ public class StompHeaderInterceptor implements ChannelInterceptor {
                                 userDetails, null, userDetails.getAuthorities());
                         accessor.setUser(authToken);
                         SecurityContextHolder.getContext().setAuthentication(authToken);
+
+                        // Track which userId owns this session so we can
+                        // authorize its subscriptions later (C-3).
+                        Object userIdClaim = jwtService.extractClaim(jwt, c -> c.get("userId"));
+                        if (userIdClaim instanceof Number n && accessor.getSessionId() != null) {
+                            sessionUserIdMap.put(accessor.getSessionId(), n.longValue());
+                        }
                     } else {
                         log.warn("WebSocket auth failed: invalid or expired token for user {}", maskEmail(userEmail));
                         throw new org.springframework.messaging.MessageDeliveryException("Invalid or expired token");

@@ -18,6 +18,27 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    /**
+     * H-4 FIX: ResponseStatusException extends RuntimeException, so the generic
+     * RuntimeException handler below was swallowing the intended HTTP status —
+     * every 401/403 thrown via ResponseStatusException was returned as 400,
+     * breaking the API contract (docs promise 401 on bad credentials) and the
+     * frontend's refresh-token-on-401 interceptor. This handler preserves the
+     * intended status code and reason.
+     */
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ResponseEntity<Map<String, Object>> handleResponseStatusException(
+            org.springframework.web.server.ResponseStatusException ex) {
+        HttpStatus status = HttpStatus.valueOf(ex.getStatusCode().value());
+        String reason = ex.getReason() != null ? ex.getReason() : status.getReasonPhrase();
+        if (status.is5xxServerError()) {
+            log.error("ResponseStatusException: {}", reason, ex);
+        } else {
+            log.warn("ResponseStatusException [{}]: {}", status.value(), reason);
+        }
+        return buildErrorResponse(status, reason);
+    }
+
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntimeException(RuntimeException ex) {
         // Log full stack trace server-side but return only the message to the client

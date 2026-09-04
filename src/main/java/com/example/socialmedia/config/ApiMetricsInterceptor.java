@@ -51,12 +51,33 @@ public class ApiMetricsInterceptor implements HandlerInterceptor {
             @NonNull Object handler) {
         request.setAttribute(START_TIME_ATTR, System.currentTimeMillis());
 
+        // PERF/CARDINALITY (M-5): use the matched ROUTE PATTERN (/api/users/{userId})
+        // instead of the raw URI (/api/users/123). Raw URIs create one Prometheus
+        // time series per unique ID — unbounded cardinality that degrades the
+        // metrics registry. The pattern is only known after mapping, so we store it
+        // from afterCompletion when it is available; preHandle falls back to the URI.
+        String endpoint = resolveEndpoint(request);
+        request.setAttribute(ENDPOINT_ATTR, endpoint);
+
         // Increment total request counter
         meterRegistry.counter("api.requests.total",
-                "endpoint", request.getRequestURI(),
+                "endpoint", endpoint,
                 "method", request.getMethod()).increment();
 
         return true;
+    }
+
+    private static final String ENDPOINT_ATTR = "apiMetrics.endpoint";
+
+    private String resolveEndpoint(HttpServletRequest request) {
+        // HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE is populated by Spring MVC
+        // after the handler is selected (available in afterCompletion / postHandle).
+        Object pattern = request.getAttribute(
+                org.springframework.web.servlet.HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+        if (pattern instanceof String s && !s.isBlank()) {
+            return request.getMethod() + " " + s;
+        }
+        return request.getMethod() + " " + request.getRequestURI();
     }
 
     @Override
@@ -69,7 +90,10 @@ public class ApiMetricsInterceptor implements HandlerInterceptor {
                 return;
 
             long durationMs = System.currentTimeMillis() - startTime;
-            String endpoint = request.getRequestURI();
+            String endpoint = (String) request.getAttribute(ENDPOINT_ATTR);
+            if (endpoint == null) {
+                endpoint = resolveEndpoint(request);
+            }
             String method = request.getMethod();
             int statusCode = response.getStatus();
 
@@ -101,9 +125,9 @@ public class ApiMetricsInterceptor implements HandlerInterceptor {
 
             // ---- Database usage log (indexing) ----
             String userId = getCurrentUserId();
-            String clientIp = request.getHeader("X-Forwarded-For");
-            if (clientIp == null)
-                clientIp = request.getRemoteAddr();
+            // SECURITY (M-5): spoofable first-hop X-Forwarded-For replaced by the
+            // shared resolver that walks right-to-left past trusted proxies.
+            String clientIp = com.example.socialmedia.util.ClientIpResolver.getClientIp(request);
 
             ApiUsageLog logEntry = new ApiUsageLog(
                     userId, method, endpoint, statusCode, durationMs, clientIp);

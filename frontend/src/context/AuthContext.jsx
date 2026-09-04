@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { decodeToken } from './jwtDecode';
 import { getOrCreateIdentity } from '../crypto/e2ee';
+import { revokeSession } from '../api/axios';
 
 const AuthContext = createContext(null);
 
@@ -40,6 +41,10 @@ export function AuthProvider({ children }) {
     };
 
     const logout = () => {
+        // SECURITY (H-3): revoke tokens server-side too — previously logout only
+        // cleared localStorage, leaving the access token valid for 15 minutes
+        // and the refresh token valid for 7 DAYS.
+        revokeSession();
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');

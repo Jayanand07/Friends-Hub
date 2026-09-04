@@ -57,7 +57,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return;
         }
 
-        String clientIp = getClientIp(request);
+        String clientIp = com.example.socialmedia.util.ClientIpResolver.getClientIp(request);
         String requestPath = request.getRequestURI();
         boolean isAuthEndpoint = requestPath.startsWith("/api/auth/login")
             || requestPath.startsWith("/api/auth/register")
@@ -144,25 +144,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
         return path.startsWith("/actuator") || "OPTIONS".equalsIgnoreCase(request.getMethod());
     }
 
-    // Trusted internal proxy CIDR prefixes — only trust X-Forwarded-For from these
-    private static final java.util.Set<String> TRUSTED_PROXY_PREFIXES = java.util.Set.of(
-        "10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.",
-        "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.",
-        "172.27.", "172.28.", "172.29.", "172.30.", "172.31.", "192.168.", "127."
-    );
-
-    private String getClientIp(HttpServletRequest request) {
-        String remoteAddr = request.getRemoteAddr();
-        boolean isTrustedProxy = TRUSTED_PROXY_PREFIXES.stream()
-            .anyMatch(remoteAddr::startsWith);
-        if (isTrustedProxy) {
-            String xff = request.getHeader("X-Forwarded-For");
-            if (xff != null && !xff.isBlank()) {
-                return xff.split(",")[0].trim();
-            }
-        }
-        return remoteAddr;
-    }
+    // NOTE (H-1): Client IP resolution moved to util.ClientIpResolver.
+    // The previous implementation took the FIRST X-Forwarded-For entry,
+    // which is attacker-controlled (proxies append, not replace), letting
+    // anyone bypass IP rate limits by rotating fake IPs.
 
     /** Simple rate limit tracking per IP */
     private static class RateLimitEntry {

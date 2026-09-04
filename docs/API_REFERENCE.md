@@ -51,7 +51,7 @@ Register a new account. Sends verification email.
 | `email` | string | Yes | Valid email format |
 | `password` | string | Yes | Min 12 characters |
 
-**Response**: `200` `{ "message": "Registration successful. Please verify your email." }`
+**Response**: `200` `{ "message": "User registered successfully. Please check your email to verify your account." }`
 
 ---
 
@@ -66,13 +66,15 @@ Authenticate and receive JWT tokens.
 **Response**: `200`
 ```json
 {
-  "accessToken": "eyJhbGci...",
-  "refreshToken": "abc123...",
-  "userId": 1,
-  "email": "user@example.com",
-  "role": "ROLE_USER"
+  "token": "eyJhbGci...",
+  "refreshToken": "abc123..."
 }
 ```
+
+> Note: the access-token field is `token` (NOT `accessToken`) and the payload does
+> NOT include `userId`/`email`/`role` — decode the JWT client-side to read claims.
+
+**Errors**: `401` invalid credentials · `403` email not verified yet
 
 ---
 
@@ -126,7 +128,7 @@ Login/register via Google OAuth token.
 
 | Field | Type | Required |
 |:---|:---|:---|
-| `token` | string | Yes |
+| `idToken` | string | Yes — verified server-side (Google JWKS or Supabase auth API). Email fields in the body are ignored. |
 
 **Response**: Same as `/login`
 
@@ -144,9 +146,10 @@ Refresh access token using refresh token.
 ---
 
 ### POST `/api/auth/logout` 🔒
-Blacklist the current JWT token.
+Blacklist the current JWT access token and revoke the refresh token.
 
 **Headers**: `Authorization: Bearer <token>`  
+**Body** (optional but recommended): `{ "refreshToken": "<token>" }`  
 **Response**: `200` `{ "message": "Logged out successfully. Token has been revoked." }`
 
 ---

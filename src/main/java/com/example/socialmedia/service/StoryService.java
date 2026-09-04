@@ -77,24 +77,30 @@ public class StoryService {
             storiesByUser.remove(currentUser.getId());
         }
 
+        // PERF: The old loop issued up to 4 queries per story owner (2 block checks
+        // + 2 follow checks) — 50 active story owners meant 200+ queries per request.
+        // Batch everything into 3 queries total.
+        Set<Long> followingIds = followRepository.findByFollowerId(currentUser.getId()).stream()
+                .map(f -> f.getFollowing().getId())
+                .collect(Collectors.toSet());
+        Set<Long> blockedByMe = new HashSet<>(blockRepository.findBlockedIdsByBlockerId(currentUser.getId()));
+        Set<Long> blockedMe = new HashSet<>(blockRepository.findBlockerIdsByBlockedId(currentUser.getId()));
+
         for (Map.Entry<Long, List<Story>> entry : storiesByUser.entrySet()) {
             User storyOwner = entry.getValue().get(0).getUser();
 
             // Block check: skip if either user blocked the other
-            if (blockRepository.existsByBlockerAndBlocked(currentUser, storyOwner) ||
-                    blockRepository.existsByBlockerAndBlocked(storyOwner, currentUser)) {
+            if (blockedByMe.contains(storyOwner.getId()) || blockedMe.contains(storyOwner.getId())) {
                 continue;
             }
 
             // Private account check: skip if owner is private and viewer doesn't follow
-            if (storyOwner.isPrivateAccount() &&
-                    !followRepository.existsByFollowerAndFollowing(currentUser, storyOwner)) {
+            if (storyOwner.isPrivateAccount() && !followingIds.contains(storyOwner.getId())) {
                 continue;
             }
 
             // Story visibility: if owner restricts to followers only, check follow
-            if (storyOwner.isAllowStoryViewByFollowersOnly() &&
-                    !followRepository.existsByFollowerAndFollowing(currentUser, storyOwner)) {
+            if (storyOwner.isAllowStoryViewByFollowersOnly() && !followingIds.contains(storyOwner.getId())) {
                 continue;
             }
 
@@ -120,6 +126,18 @@ public class StoryService {
         // Block check
         if (blockRepository.existsByBlockerAndBlocked(story.getUser(), viewer) ||
                 blockRepository.existsByBlockerAndBlocked(viewer, story.getUser())) {
+            return;
+        }
+
+        // SECURITY (M-4): Respect the same visibility rules as getActiveStories —
+        // previously anyone could register a "view" on a private user's story
+        // (or one restricted to followers) by calling this endpoint directly.
+        if (story.getUser().isPrivateAccount()
+                && !followRepository.existsByFollowerAndFollowing(viewer, story.getUser())) {
+            return;
+        }
+        if (story.getUser().isAllowStoryViewByFollowersOnly()
+                && !followRepository.existsByFollowerAndFollowing(viewer, story.getUser())) {
             return;
         }
 

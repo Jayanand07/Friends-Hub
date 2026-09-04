@@ -1,7 +1,8 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
+import { environment } from '../../environments/environment';
 
 export interface AnalyticsOverview {
   status: string;
@@ -26,12 +27,20 @@ export interface AnalyticsOverview {
   providedIn: 'root'
 })
 export class AnalyticsService {
-  private apiUrl = 'http://localhost:5000/api';
+  // FIX: configurable URL (was hardcoded to localhost:5000 → always failed in
+  // production) + Authorization header (the backend endpoint requires a valid
+  // JWT with an admin role — previously every call returned 401 and silently
+  // fell back to demo data).
+  private apiUrl = environment.apiUrl;
 
   constructor(private http: HttpClient) {}
 
   getOverview(): Observable<AnalyticsOverview> {
-    return this.http.get<AnalyticsOverview>(`${this.apiUrl}/analytics/overview`).pipe(
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('adminToken') : null;
+    const headers = token
+      ? new HttpHeaders({ Authorization: `Bearer ${token}` })
+      : undefined;
+    return this.http.get<AnalyticsOverview>(`${this.apiUrl}/analytics/overview`, { headers }).pipe(
       catchError(() => {
         // Fallback demo data if Node.js microservice is starting up
         return of({

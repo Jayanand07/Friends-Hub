@@ -71,12 +71,33 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(@RequestHeader("Authorization") String authHeader) {
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
-            jwtService.blacklistToken(token);
-            return ResponseEntity.ok(new MessageResponse("Logged out successfully. Token has been revoked."));
+    public ResponseEntity<?> logout(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestBody(required = false) LogoutRequest body) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return ResponseEntity.badRequest().body(new MessageResponse("Invalid authorization header"));
         }
-        return ResponseEntity.badRequest().body(new MessageResponse("Invalid authorization header"));
+        String token = authHeader.substring(7);
+        jwtService.blacklistToken(token);
+
+        // SECURITY (H-3): Also revoke the refresh token so the session cannot be
+        // silently re-established after logout. The frontend must send it.
+        if (body != null && body.getRefreshToken() != null && !body.getRefreshToken().isBlank()) {
+            authService.revokeRefreshToken(body.getRefreshToken());
+        }
+        return ResponseEntity.ok(new MessageResponse("Logged out successfully. Tokens have been revoked."));
+    }
+
+    /** Optional logout payload carrying the refresh token to revoke. */
+    public static class LogoutRequest {
+        private String refreshToken;
+
+        public String getRefreshToken() {
+            return refreshToken;
+        }
+
+        public void setRefreshToken(String refreshToken) {
+            this.refreshToken = refreshToken;
+        }
     }
 }
