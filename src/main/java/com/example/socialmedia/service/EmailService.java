@@ -28,6 +28,16 @@ public class EmailService {
     @Value("${spring.mail.username:${MAIL_USERNAME:}}")
     private String smtpUsername;
 
+    // Resend API key — when set, emails dispatch via Resend HTTPS REST API (ports 443, immune to SMTP blocks)
+    @Value("${resend.api.key:${RESEND_API_KEY:}}")
+    private String resendApiKey;
+
+    // Resend From address — defaults to onboarding@resend.dev until custom domain is verified
+    @Value("${resend.from-address:${RESEND_FROM:}}")
+    private String resendFromAddress;
+
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
     // Display name shown to recipients — "FriendsHub"
     @Value("${app.mail.display-name:FriendsHub}")
     private String displayName;
@@ -124,10 +134,77 @@ public class EmailService {
     }
 
     // -------------------------------------------------------------------------
-    // Core send method (Gmail SMTP)
+    // Core send method (Resend HTTPS API with automatic Gmail SMTP fallback)
     // -------------------------------------------------------------------------
 
     public boolean sendHtmlEmail(String toEmail, String subject, String htmlBody) {
+        // 1. Prioritize Resend HTTPS REST API if RESEND_API_KEY is configured
+        if (resendApiKey != null && !resendApiKey.isBlank()) {
+            if (sendViaResend(toEmail, subject, htmlBody)) {
+                return true;
+            }
+            log.warn("Resend API delivery failed for {}. Attempting fallback to Gmail SMTP...", maskEmail(toEmail));
+        }
+
+        // 2. Fallback to JavaMailSender (Gmail SMTP)
+        return sendViaSmtp(toEmail, subject, htmlBody);
+    }
+
+    private boolean sendViaResend(String toEmail, String subject, String htmlBody) {
+        try {
+            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                    .connectTimeout(java.time.Duration.ofSeconds(10))
+                    .build();
+
+            // Determine effective From address:
+            // 1. Explicit RESEND_FROM environment setting takes precedence
+            // 2. Otherwise if app.mail.from-address is custom (not default unverified domain), format with display name
+            // 3. Default fallback for unverified accounts is Resend's sandbox sender: onboarding@resend.dev
+            String from;
+            if (resendFromAddress != null && !resendFromAddress.isBlank()) {
+                from = resendFromAddress.trim();
+            } else if (fromAddress != null && !fromAddress.isBlank() && !fromAddress.equals("noreply@friendshub.me")) {
+                from = (displayName != null && !displayName.isBlank() ? displayName.trim() : "FriendsHub")
+                        + " <" + fromAddress.trim() + ">";
+            } else {
+                from = "FriendsHub <onboarding@resend.dev>";
+            }
+
+            java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();
+            payload.put("from", from);
+            payload.put("to", java.util.List.of(toEmail.trim()));
+            payload.put("subject", subject);
+            payload.put("html", htmlBody);
+
+            if (replyTo != null && !replyTo.isBlank()) {
+                payload.put("reply_to", replyTo.trim());
+            }
+
+            String jsonPayload = objectMapper.writeValueAsString(payload);
+
+            java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create("https://api.resend.com/emails"))
+                    .timeout(java.time.Duration.ofSeconds(15))
+                    .header("Authorization", "Bearer " + resendApiKey.trim())
+                    .header("Content-Type", "application/json; charset=UTF-8")
+                    .POST(java.net.http.HttpRequest.BodyPublishers.ofString(jsonPayload, java.nio.charset.StandardCharsets.UTF_8))
+                    .build();
+
+            java.net.http.HttpResponse<String> resp = client.send(req, java.net.http.HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+                log.info("Email delivered successfully via Resend API to {}", maskEmail(toEmail));
+                return true;
+            } else {
+                log.error("Resend API rejected email to {} (HTTP {}): {}", maskEmail(toEmail), resp.statusCode(), resp.body());
+                return false;
+            }
+        } catch (Exception e) {
+            log.error("Resend API request exception for {}: {}", maskEmail(toEmail), e.getMessage(), e);
+            return false;
+        }
+    }
+
+    private boolean sendViaSmtp(String toEmail, String subject, String htmlBody) {
         try {
             MimeMessage message = javaMailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
